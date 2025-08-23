@@ -1,0 +1,148 @@
+:root {
+  --bg: #0b0f14;
+  --card: #121821;
+  --muted: #9fb1c2;
+  --text: #e7eef6;
+  --accent: #2f7df4;
+  --green: #22c55e;
+  --red: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 220px;
+  flex: 1;
+}
+
+select, option {
+  background: #0d141c;
+  color: var(--text);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 0.55rem 0.65rem;
+  outline: none;
+}
+
+select:disabled {
+  opacity: 0.5;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.table th, .table td {
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.table th {
+  color: var(--muted);
+  font-weight: 600;
+  text-align: left;
+}
+
+.badge {
+  display: inline-block;
+  background: rgba(47,125,244,0.15);
+  color: #b8d3ff;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.bar {
+  height: 10px;
+  background: rgba(47,125,244,0.22);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar > span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #2f7df4, #5aa2ff);
+  border-radius: 6px;
+}
+
+.footer {
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.small {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.kpi {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.kpi .value {
+  font-weight: 700;
+}
+
+.spacer {
+  height: 8px;
+}
