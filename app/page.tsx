@@ -108,7 +108,7 @@ export default function Page() {
         byCargo[cargoId].push(cand);
       });
       // ordenar candidatos por nombre para UI determinista
-      Object.keys(byCargo).forEach(cg => byCargo[cg].sort((a,b)=>(a.nombre || a.candidatoId).localeCompare(b.nombre || b.candidatoId, "es")));
+      Object.keys(byCargo).forEach(cg => byCargo[cg].sort((a, b) => (a.nombre || a.candidatoId).localeCompare(b.nombre || b.candidatoId, "es")));
       setCandidatosPorCargo(byCargo);
       // autoselección de carga si vacío
       if (!selectedCargo && Object.keys(byCargo).length > 0) {
@@ -237,21 +237,14 @@ export default function Page() {
       <h1>Resultados en tiempo real</h1>
 
       <Filters
-        elecciones={elecciones}
-        comunas={comunas}
-        locales={locales}
-        mesas={mesas}
-        cargos={cargos}
-        selectedEleccion={selectedEleccion}
-        selectedComuna={selectedComuna}
-        selectedLocal={selectedLocal}
-        selectedMesa={selectedMesa}
-        selectedCargo={selectedCargo}
-        onChangeEleccion={setSelectedEleccion}
-        onChangeComuna={setSelectedComuna}
-        onChangeLocal={setSelectedLocal}
-        onChangeMesa={setSelectedMesa}
-        onChangeCargo={setSelectedCargo}
+        eleccionId={selectedEleccion}
+        setEleccionId={setSelectedEleccion}
+        cargoId={selectedCargo}
+        setCargoId={setSelectedCargo}
+        localId={selectedLocal}
+        setLocalId={setSelectedLocal}
+        mesaId={selectedMesa}
+        setMesaId={setSelectedMesa}
       />
 
       <ResultsTable
