@@ -8,6 +8,7 @@ import { app } from "@/lib/firebase";
 export default function VozPage() {
   const [text, setText] = useState("");
   const [user, setUser] = useState(null);
+  const [votos, setVotos] = useState(0); // Estado para contar los votos
   const router = useRouter();
   const auth = getAuth(app);
 
@@ -39,8 +40,16 @@ export default function VozPage() {
     recognition.interimResults = false;
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
+      const transcript = event.results[0][0].transcript.toLowerCase();
       setText(transcript);
+
+      // Lógica de conteo de votos
+      const palabraClave = "pasto seco";
+      const regex = new RegExp(`\\b${palabraClave}\\b`, 'g');
+      const matches = transcript.match(regex) || [];
+      if (matches.length > 0) {
+        setVotos(prevVotos => prevVotos + matches.length);
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -72,6 +81,7 @@ export default function VozPage() {
         <br />
         {text}
       </p>
+      <h2 style={{ marginTop: 20 }}>Votos Contados: {votos}</h2>
     </div>
   );
 }
