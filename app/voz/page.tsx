@@ -6,9 +6,6 @@ import { db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
-// Agrega esta línea para declarar el tipo de SpeechRecognition
-declare const SpeechRecognition: any;
-
 type Votos = {
   presidente: { [key: string]: number; };
   diputado: { [key: string]: number; };
@@ -26,7 +23,7 @@ export default function VotoPage() {
   const [isListening, setIsListening] = useState(false);
   const [lastCommand, setLastCommand] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -50,13 +47,13 @@ export default function VotoPage() {
       recognition.lang = "es-CL";
       recognition.maxAlternatives = 1;
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onresult = (event: any) => {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
         setLastCommand(transcript);
         handleVoiceCommand(transcript);
       };
 
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      recognition.onerror = (event: any) => {
         console.error("Error de reconocimiento de voz:", event.error);
         if (event.error === 'not-allowed') {
           setError('Necesitas dar permiso al micrófono. Recarga la página y acepta el permiso.');
@@ -79,11 +76,11 @@ export default function VotoPage() {
   const toggleListening = () => {
     if (recognitionRef.current) {
       if (isListening) {
-        recognition.current.stop();
+        recognitionRef.current.stop();
         setIsListening(false);
       } else {
         setError(null);
-        recognition.current.start();
+        recognitionRef.current.start();
         setIsListening(true);
       }
     }
