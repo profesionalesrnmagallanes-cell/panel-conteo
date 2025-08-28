@@ -6,6 +6,9 @@ import { db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
+// Agrega esta línea para declarar el tipo de SpeechRecognition
+declare const SpeechRecognition: any;
+
 type Votos = {
   presidente: { [key: string]: number; };
   diputado: { [key: string]: number; };
@@ -17,6 +20,33 @@ const USER_ID_TO_MESA_ID: { [key: string]: string } = {
   "giXA2LVDIhQfRW9qeZenKRLExZ63": "mesa_1", // jorgemunozj@gmail.com
   "daNL4OkUmBRa7zMfdtyW7mTjqjF3": "mesa_2", // blanca.barria1956@gmail.com
   "6NOrwtH3DXcqRQOaTXnd3cmkhaY2": "mesa_3", // cesar.alvarado.barria@gmail.com
+};
+
+// Mapeo de sinónimos y números a nombres de candidatos
+const CANDIDATOS_MAP = {
+  presidente: {
+    "fenomeno": "fenomeno",
+    "uno": "fenomeno",
+    "1": "fenomeno",
+    "candonga": "candonga",
+    "dos": "candonga",
+    "2": "candonga",
+    "pasto seco": "pasto seco",
+    "tres": "pasto seco",
+    "3": "pasto seco",
+    "blanco": "blancos",
+    "nulo": "nulos",
+  },
+  diputado: {
+    "manoslimpias": "manoslimpias",
+    "uno": "manoslimpias",
+    "1": "manoslimpias",
+    "cascote": "cascote",
+    "dos": "cascote",
+    "2": "cascote",
+    "blanco": "blancos",
+    "nulo": "nulos",
+  }
 };
 
 export default function VotoPage() {
@@ -88,11 +118,15 @@ export default function VotoPage() {
 
   const parsearVoto = (text: string): { cargo: string; candidato: string } | null => {
     const palabras = text.split(" ");
-    const cargo = palabras[0]; // Asume que la primera palabra es el cargo
-    const candidato = palabras.slice(1).join(" "); // El resto es el candidato
+    const cargo = palabras[0];
+    const candidatoRaw = palabras.slice(1).join(" ").trim();
 
-    if (cargo === "presidente" || cargo === "diputado") {
-      return { cargo, candidato };
+    // Verificamos si el cargo es válido antes de acceder al mapa
+    if (cargo in CANDIDATOS_MAP) {
+      const candidatoNormalizado = CANDIDATOS_MAP[cargo as keyof typeof CANDIDATOS_MAP][candidatoRaw as keyof typeof CANDIDATOS_MAP["presidente"]] || null;
+      if (candidatoNormalizado) {
+        return { cargo, candidato: candidatoNormalizado };
+      }
     }
     return null;
   };
