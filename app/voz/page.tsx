@@ -1,12 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { useRouter } from 'next/navigation';
+import { app } from "@/lib/firebase";
 
 export default function VozPage() {
   const [text, setText] = useState("");
+  const [user, setUser] = useState(null);
+  const router = useRouter();
+  const auth = getAuth(app);
+
+  useEffect(() => {
+    // Escucha los cambios en el estado de autenticación
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Si hay un usuario autenticado, establece el estado
+        setUser(user);
+      } else {
+        // Si no hay un usuario, redirige a la página de login
+        router.push("/login");
+      }
+    });
+
+    // Detiene la escucha cuando el componente se desmonta
+    return () => unsubscribe();
+  }, [auth, router]);
 
   const startRecognition = () => {
-    // Check if the browser supports the Web Speech API
     if (!('webkitSpeechRecognition' in window)) {
       alert("El navegador no soporta el reconocimiento de voz.");
       return;
@@ -30,6 +51,16 @@ export default function VozPage() {
     recognition.start();
   };
 
+  // Muestra un mensaje de carga mientras se verifica el estado de autenticación
+  if (!user) {
+    return (
+      <div className="container card" style={{ marginTop: 40 }}>
+        <h1>Cargando...</h1>
+      </div>
+    );
+  }
+
+  // Muestra el contenido de la página solo si el usuario está autenticado
   return (
     <div className="container card" style={{ marginTop: 40 }}>
       <h1>Registro por Voz</h1>
