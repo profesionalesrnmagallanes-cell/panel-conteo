@@ -16,5 +16,6 @@ const firebaseConfig = {
   measurementId: "G-6ENPEC81RD"
 };
 
-const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+// Se asegura de que la app solo se inicialice una vez
+export const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
