@@ -6,6 +6,9 @@ import { db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
+// Agrega esta línea para declarar el tipo de SpeechRecognition
+declare const SpeechRecognition: any;
+
 type Votos = {
   presidente: { [key: string]: number; };
   diputado: { [key: string]: number; };
