@@ -1,105 +1,132 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onSnapshot, doc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import ResultsTable from "@/components/ResultsTable";
-import Filters from "@/components/Filters";
 
-// Definición de tipos para las filas de la tabla de resultados
-type Row = { candidatoId: string; nombre?: string; votos: number; porcentaje: number };
 type Votos = {
   presidente: { [key: string]: number; };
   diputado: { [key: string]: number; };
 };
 
-// Mapeo de IDs a nombres para mostrar en la tabla
-const candidatoNombres: { [key: string]: string } = {
-  "fenomeno": "Fenomeno",
-  "candonga": "Candonga",
-  "pasto seco": "Pasto Seco",
-  "blancos": "Votos en blanco",
-  "nulos": "Votos nulos",
-  "manoslimpias": "Manos Limpias",
-  "cascote": "Cascote",
+const cargos = ["presidente", "diputado"];
+const candidatos = {
+  presidente: ["gabriel boric", "jose antonio kast", "franco parisi", "sebastián sichel"],
+  diputado: ["candidato 1", "candidato 2", "candidato 3"]
 };
 
-export default function Page() {
-  const [eleccionId, setEleccionId] = useState<string>("2025");
-  const [cargoId, setCargoId] = useState<string>("PRE");
-  const [localId, setLocalId] = useState<string>("todos");
-  const [mesaId, setMesaId] = useState<string>("todas");
-
-  const [rows, setRows] = useState<Row[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
+export default function Home() {
+  const [votosTotales, setVotosTotales] = useState<Votos | null>(null);
+  const [votosPorMesa, setVotosPorMesa] = useState<any>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    const votosDocRef = doc(db, "resultados", "votos-2025");
+    const unsubscribes: (() => void)[] = [];
+    const mesas = ["mesa_1", "mesa_2", "mesa_3"];
+    
+    // Inicializar votos en 0
+    const votosTotalesInicial: Votos = { presidente: {}, diputado: {} };
+    cargos.forEach(cargo => {
+      candidatos[cargo as keyof typeof candidatos].forEach(candidato => {
+        votosTotalesInicial[cargo as keyof Votos][candidato] = 0;
+      });
+    });
 
-    const unsub = onSnapshot(
-      votosDocRef,
-      (docSnap) => {
-        const sumByCand = new Map<string, number>();
+    setVotosTotales(votosTotalesInicial);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data() as Votos;
-          let votosPorCargo;
+    mesas.forEach(mesa => {
+      const mesaDocRef = doc(db, "resultados_mesas", mesa);
 
-          if (cargoId === "PRE") {
-            votosPorCargo = data.presidente;
-          } else if (cargoId === "DIP") {
-            votosPorCargo = data.diputado;
-          }
-
-          if (votosPorCargo) {
-            for (const candidato in votosPorCargo) {
-              const votos = votosPorCargo[candidato];
-              sumByCand.set(candidato, (sumByCand.get(candidato) || 0) + votos);
-            }
-          }
-        }
+      const unsubscribe = onSnapshot(mesaDocRef, (docSnap) => {
+        const datosMesa = docSnap.exists() ? (docSnap.data() as Votos) : null;
         
-        const totalV = Array.from(sumByCand.values()).reduce((a, b) => a + b, 0);
-        const rws: Row[] = Array.from(sumByCand.entries())
-          .map(([candidatoId, votos]) => ({
-            candidatoId,
-            nombre: candidatoNombres[candidatoId] || candidatoId,
-            votos,
-            porcentaje: totalV > 0 ? (votos * 100) / totalV : 0
-          }))
-          .sort((a, b) => b.votos - a.votos);
+        setVotosPorMesa(prev => {
+          const updatedVotosPorMesa = {
+            ...prev,
+            [mesa]: datosMesa,
+          };
+          
+          let nuevosVotosTotales = { ...votosTotalesInicial };
+          cargos.forEach(cargo => {
+            candidatos[cargo as keyof typeof candidatos].forEach(candidato => {
+              Object.values(updatedVotosPorMesa).forEach((tableData: any) => {
+                if (tableData && tableData[cargo] && tableData[cargo][candidato]) {
+                  nuevosVotosTotales[cargo as keyof Votos][candidato] += tableData[cargo][candidato];
+                }
+              });
+            });
+          });
 
-        setRows(rws);
-        setTotal(totalV);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error al escuchar resultados: ", error);
-        setLoading(false);
-      }
+          setVotosTotales(nuevosVotosTotales);
+          setLoading(false);
+          return updatedVotosPorMesa;
+        });
+      });
+      unsubscribes.push(unsubscribe);
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="container" style={{ marginTop: 40 }}>
+        <p>Cargando resultados...</p>
+      </div>
     );
-
-    return () => unsub();
-  }, [cargoId]);
+  }
 
   return (
     <div className="container" style={{ marginTop: 40 }}>
-      <h1>Resultados en tiempo real</h1>
+      <h1>Resultados de Votación por Mesa</h1>
+      
+      {Object.keys(votosPorMesa).length > 0 ? (
+        Object.keys(votosPorMesa).map(mesaId => (
+          <div key={mesaId} className="card" style={{ marginBottom: 20 }}>
+            <h2>Mesa {mesaId.split('_')[1]}</h2>
+            {votosPorMesa[mesaId] && Object.keys(votosPorMesa[mesaId]).length > 0 ? (
+              cargos.map(cargo => (
+                <div key={cargo}>
+                  <h3>Votos para {cargo}</h3>
+                  <ul>
+                    {candidatos[cargo as keyof typeof candidatos].map(candidato => (
+                      <li key={candidato}>
+                        **{candidato.toUpperCase()}**: {votosPorMesa[mesaId][cargo]?.[candidato] || 0}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            ) : (
+              <p>No hay votos registrados para esta mesa.</p>
+            )}
+          </div>
+        ))
+      ) : (
+        <p>No se encontraron resultados.</p>
+      )}
 
-      <Filters
-        eleccionId={eleccionId}
-        setEleccionId={setEleccionId}
-        cargoId={cargoId}
-        setCargoId={setCargoId}
-        localId={localId}
-        setLocalId={setLocalId}
-        mesaId={mesaId}
-        setMesaId={setMesaId}
-      />
-
-      <ResultsTable rows={rows} totalVotos={total} loading={loading} />
+      <h1>Resultados Totales Consolidados</h1>
+      <div className="card">
+        {votosTotales && Object.keys(votosTotales).length > 0 ? (
+          cargos.map(cargo => (
+            <div key={cargo}>
+              <h2>Votos para {cargo}</h2>
+              <ul>
+                {candidatos[cargo as keyof typeof candidatos].map(candidato => (
+                  <li key={candidato}>
+                    **{candidato.toUpperCase()}**: {votosTotales[cargo as keyof Votos][candidato] || 0}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        ) : (
+          <p>No se encontraron resultados.</p>
+        )}
+      </div>
     </div>
   );
 }
