@@ -123,7 +123,9 @@ export default function VotoPage() {
 
     // Verificamos si el cargo es válido antes de acceder al mapa
     if (cargo in CANDIDATOS_MAP) {
-      const candidatoNormalizado = CANDIDATOS_MAP[cargo as keyof typeof CANDIDATOS_MAP][candidatoRaw as keyof typeof CANDIDATOS_MAP["presidente"]] || null;
+      const cargoMap = CANDIDATOS_MAP[cargo as keyof typeof CANDIDATOS_MAP];
+      const candidatoNormalizado = cargoMap[candidatoRaw as keyof typeof cargoMap] || null;
+      
       if (candidatoNormalizado) {
         return { cargo, candidato: candidatoNormalizado };
       }
