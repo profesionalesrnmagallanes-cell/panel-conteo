@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from 'next/navigation';
 import { app } from "@/lib/firebase";
@@ -11,6 +11,7 @@ export default function VozPage() {
   const [votos, setVotos] = useState(0); // Estado para contar los votos
   const router = useRouter();
   const auth = getAuth(app);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     // Escucha los cambios en el estado de autenticación
@@ -24,8 +25,13 @@ export default function VozPage() {
       }
     });
 
-    // Detiene la escucha cuando el componente se desmonta
-    return () => unsubscribe();
+    // Detiene la escucha y la suscripción cuando el componente se desmonta
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      unsubscribe();
+    };
   }, [auth, router]);
 
   const startRecognition = () => {
@@ -34,13 +40,17 @@ export default function VozPage() {
       return;
     }
 
+    // Si ya hay un proceso de reconocimiento, no iniciar uno nuevo
+    if (recognitionRef.current) return;
+
     const recognition = new (window as any).webkitSpeechRecognition();
     recognition.lang = "es-CL";
-    recognition.continuous = false;
+    recognition.continuous = true; // Ahora escucha de forma continua
     recognition.interimResults = false;
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript.toLowerCase();
+      const lastResultIndex = event.results.length - 1;
+      const transcript = event.results[lastResultIndex][0].transcript.toLowerCase();
       setText(transcript);
 
       // Lógica de conteo de votos
@@ -57,7 +67,19 @@ export default function VozPage() {
       alert(`Error en el reconocimiento de voz: ${event.error}`);
     };
 
+    recognition.onend = () => {
+      // Limpia la referencia cuando el reconocimiento termina
+      recognitionRef.current = null;
+    };
+
     recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  const stopRecognition = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
   };
 
   // Muestra un mensaje de carga mientras se verifica el estado de autenticación
@@ -73,8 +95,11 @@ export default function VozPage() {
   return (
     <div className="container card" style={{ marginTop: 40 }}>
       <h1>Registro por Voz</h1>
-      <button onClick={startRecognition}>
+      <button onClick={startRecognition} style={{ marginRight: 10 }}>
         <span role="img" aria-label="microphone">🎤</span> Empezar dictado
+      </button>
+      <button onClick={stopRecognition}>
+        <span role="img" aria-label="stop">⏹️</span> Detener dictado
       </button>
       <p style={{ marginTop: 20 }}>
         **Texto detectado:**
