@@ -96,9 +96,9 @@ export default function VozPage() {
       };
 
       let votoRegistrado = false;
-      for (const candidato in presidenteCandidatos) {
-        if (presidenteCandidatos[candidato].some(alias => transcript.includes(alias))) {
-          updatedVotos.presidente[candidato] += 1;
+      for (const candidato of Object.keys(presidenteCandidatos)) {
+        if (presidenteCandidatos[candidato as keyof typeof presidenteCandidatos].some(alias => transcript.includes(alias))) {
+          updatedVotos.presidente[candidato as keyof typeof votos.presidente] += 1;
           votoRegistrado = true;
         }
       }
@@ -111,9 +111,9 @@ export default function VozPage() {
         "nulos": ["nulos"],
       };
 
-      for (const candidato in diputadoCandidatos) {
-        if (diputadoCandidatos[candidato].some(alias => transcript.includes(alias))) {
-          updatedVotos.diputado[candidato] += 1;
+      for (const candidato of Object.keys(diputadoCandidatos)) {
+        if (diputadoCandidatos[candidato as keyof typeof diputadoCandidatos].some(alias => transcript.includes(alias))) {
+          updatedVotos.diputado[candidato as keyof typeof votos.diputado] += 1;
           votoRegistrado = true;
         }
       }
@@ -170,7 +170,7 @@ export default function VozPage() {
           <h3>PRESIDENTE</h3>
           <ul>
             {Object.keys(votos.presidente).map((candidato) => (
-              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.presidente[candidato]}</li>
+              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.presidente[candidato as keyof typeof votos.presidente]}</li>
             ))}
           </ul>
         </div>
@@ -178,7 +178,7 @@ export default function VozPage() {
           <h3>DIPUTADO</h3>
           <ul>
             {Object.keys(votos.diputado).map((candidato) => (
-              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.diputado[candidato]}</li>
+              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.diputado[candidato as keyof typeof votos.diputado]}</li>
             ))}
           </ul>
         </div>
