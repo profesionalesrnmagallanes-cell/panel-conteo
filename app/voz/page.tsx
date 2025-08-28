@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth"; // Importar User
 import { useRouter } from 'next/navigation';
 import { app } from "@/lib/firebase";
 
 export default function VozPage() {
   const [text, setText] = useState("");
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null); // Corregido: El estado puede ser User o null
   const [votos, setVotos] = useState(0); // Estado para contar los votos
   const router = useRouter();
   const auth = getAuth(app);
@@ -21,6 +21,7 @@ export default function VozPage() {
         setUser(user);
       } else {
         // Si no hay un usuario, redirige a la página de login
+        setUser(null);
         router.push("/login");
       }
     });
