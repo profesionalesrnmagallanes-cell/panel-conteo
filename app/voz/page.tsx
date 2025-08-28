@@ -3,13 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from 'next/navigation';
-import { app, db } from "@/lib/firebase"; // Importar 'db'
+import { app, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, onSnapshot, updateDoc } from "firebase/firestore";
+
+// Definición de tipos para los votos y el estado de la elección
+type Votos = {
+  presidente: { [key: string]: number; };
+  diputado: { [key: string]: number; };
+};
+type ElectionState = 'presidente' | 'diputado' | null;
 
 export default function VozPage() {
   const [text, setText] = useState("");
   const [user, setUser] = useState<User | null>(null);
-  const [votos, setVotos] = useState({
+  const [votos, setVotos] = useState<Votos>({
     presidente: {
       "fenomeno": 0,
       "candonga": 0,
@@ -24,6 +31,7 @@ export default function VozPage() {
       "nulos": 0,
     },
   });
+  const [currentElection, setCurrentElection] = useState<ElectionState>(null);
   const router = useRouter();
   const auth = getAuth(app);
   const recognitionRef = useRef<any>(null);
@@ -36,7 +44,7 @@ export default function VozPage() {
         const votosDocRef = doc(db, "resultados", "votos-2025");
         const docSnap = await getDoc(votosDocRef);
         if (docSnap.exists()) {
-          setVotos(docSnap.data() as any);
+          setVotos(docSnap.data() as Votos);
         } else {
           // Si el documento no existe, crearlo
           await setDoc(votosDocRef, votos);
@@ -45,7 +53,7 @@ export default function VozPage() {
         // Escuchar cambios en tiempo real
         const unsubscribeFirestore = onSnapshot(votosDocRef, (doc) => {
           if (doc.exists()) {
-            setVotos(doc.data() as any);
+            setVotos(doc.data() as Votos);
           }
         });
 
@@ -85,36 +93,36 @@ export default function VozPage() {
 
       const votosDocRef = doc(db, "resultados", "votos-2025");
       const updatedVotos = { ...votos };
-
-      // Lógica de conteo para Presidente
-      const presidenteCandidatos = {
-        "fenomeno": ["fenomeno", "uno", "1"],
-        "candonga": ["candonga", "dos", "2"],
-        "pasto seco": ["pasto seco", "tres", "3"],
-        "blancos": ["blancos"],
-        "nulos": ["nulos"],
-      };
-
       let votoRegistrado = false;
-      for (const candidato of Object.keys(presidenteCandidatos)) {
-        if (presidenteCandidatos[candidato as keyof typeof presidenteCandidatos].some(alias => transcript.includes(alias))) {
-          updatedVotos.presidente[candidato as keyof typeof votos.presidente] += 1;
-          votoRegistrado = true;
+
+      if (currentElection === 'presidente') {
+        const presidenteCandidatos = {
+          "fenomeno": ["fenomeno", "uno", "1"],
+          "candonga": ["candonga", "dos", "2"],
+          "pasto seco": ["pasto seco", "tres", "3"],
+          "blancos": ["blancos"],
+          "nulos": ["nulos"],
+        };
+
+        for (const candidato of Object.keys(presidenteCandidatos)) {
+          if (presidenteCandidatos[candidato as keyof typeof presidenteCandidatos].some(alias => transcript.includes(alias))) {
+            updatedVotos.presidente[candidato as keyof typeof votos.presidente] += 1;
+            votoRegistrado = true;
+          }
         }
-      }
+      } else if (currentElection === 'diputado') {
+        const diputadoCandidatos = {
+          "manoslimpias": ["manoslimpias", "uno", "1"],
+          "cascote": ["cascote", "dos", "2"],
+          "blancos": ["blancos"],
+          "nulos": ["nulos"],
+        };
 
-      // Lógica de conteo para Diputado
-      const diputadoCandidatos = {
-        "manoslimpias": ["manoslimpias", "uno", "1"],
-        "cascote": ["cascote", "dos", "2"],
-        "blancos": ["blancos"],
-        "nulos": ["nulos"],
-      };
-
-      for (const candidato of Object.keys(diputadoCandidatos)) {
-        if (diputadoCandidatos[candidato as keyof typeof diputadoCandidatos].some(alias => transcript.includes(alias))) {
-          updatedVotos.diputado[candidato as keyof typeof votos.diputado] += 1;
-          votoRegistrado = true;
+        for (const candidato of Object.keys(diputadoCandidatos)) {
+          if (diputadoCandidatos[candidato as keyof typeof diputadoCandidatos].some(alias => transcript.includes(alias))) {
+            updatedVotos.diputado[candidato as keyof typeof votos.diputado] += 1;
+            votoRegistrado = true;
+          }
         }
       }
 
@@ -139,6 +147,7 @@ export default function VozPage() {
   const stopRecognition = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
+      setCurrentElection(null);
     }
   };
 
@@ -153,35 +162,58 @@ export default function VozPage() {
   return (
     <div className="container card" style={{ marginTop: 40 }}>
       <h1>Registro por Voz</h1>
-      <button onClick={startRecognition} style={{ marginRight: 10 }}>
-        <span role="img" aria-label="microphone">🎤</span> Empezar dictado
-      </button>
-      <button onClick={stopRecognition}>
-        <span role="img" aria-label="stop">⏹️</span> Detener dictado
-      </button>
+      
+      <div style={{ marginBottom: 20 }}>
+        <button 
+          onClick={() => { setCurrentElection('presidente'); startRecognition(); }} 
+          style={{ marginRight: 10 }}
+          disabled={currentElection === 'presidente'}
+        >
+          Empezar Conteo Presidente
+        </button>
+        <button 
+          onClick={() => { setCurrentElection('diputado'); startRecognition(); }}
+          style={{ marginRight: 10 }}
+          disabled={currentElection === 'diputado'}
+        >
+          Empezar Conteo Diputado
+        </button>
+        <button onClick={stopRecognition}>
+          Detener Dictado
+        </button>
+      </div>
+
       <p style={{ marginTop: 20 }}>
         **Texto detectado:**
         <br />
         {text}
       </p>
+
       <h2 style={{ marginTop: 20 }}>Conteo de Votos</h2>
       <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 20 }}>
-        <div>
-          <h3>PRESIDENTE</h3>
-          <ul>
-            {Object.keys(votos.presidente).map((candidato) => (
-              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.presidente[candidato as keyof typeof votos.presidente]}</li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <h3>DIPUTADO</h3>
-          <ul>
-            {Object.keys(votos.diputado).map((candidato) => (
-              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.diputado[candidato as keyof typeof votos.diputado]}</li>
-            ))}
-          </ul>
-        </div>
+        {currentElection === 'presidente' && (
+          <div>
+            <h3>PRESIDENTE (Votando ahora)</h3>
+            <ul>
+              {Object.keys(votos.presidente).map((candidato) => (
+                <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.presidente[candidato]}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {currentElection === 'diputado' && (
+          <div>
+            <h3>DIPUTADO (Votando ahora)</h3>
+            <ul>
+              {Object.keys(votos.diputado).map((candidato) => (
+                <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.diputado[candidato]}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {currentElection === null && (
+          <p>Selecciona una elección para comenzar el conteo.</p>
+        )}
       </div>
     </div>
   );
