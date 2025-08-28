@@ -1,37 +1,67 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth"; // Importar User
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from 'next/navigation';
-import { app } from "@/lib/firebase";
+import { app, db } from "@/lib/firebase"; // Importar 'db'
+import { doc, getDoc, setDoc, onSnapshot, updateDoc } from "firebase/firestore";
 
 export default function VozPage() {
   const [text, setText] = useState("");
-  const [user, setUser] = useState<User | null>(null); // Corregido: El estado puede ser User o null
-  const [votos, setVotos] = useState(0); // Estado para contar los votos
+  const [user, setUser] = useState<User | null>(null);
+  const [votos, setVotos] = useState({
+    presidente: {
+      "fenomeno": 0,
+      "candonga": 0,
+      "pasto seco": 0,
+      "blancos": 0,
+      "nulos": 0,
+    },
+    diputado: {
+      "manoslimpias": 0,
+      "cascote": 0,
+      "blancos": 0,
+      "nulos": 0,
+    },
+  });
   const router = useRouter();
   const auth = getAuth(app);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    // Escucha los cambios en el estado de autenticación
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Si hay un usuario autenticado, establece el estado
         setUser(user);
+        // Cargar los votos existentes de Firestore
+        const votosDocRef = doc(db, "resultados", "votos-2025");
+        const docSnap = await getDoc(votosDocRef);
+        if (docSnap.exists()) {
+          setVotos(docSnap.data() as any);
+        } else {
+          // Si el documento no existe, crearlo
+          await setDoc(votosDocRef, votos);
+        }
+        
+        // Escuchar cambios en tiempo real
+        const unsubscribeFirestore = onSnapshot(votosDocRef, (doc) => {
+          if (doc.exists()) {
+            setVotos(doc.data() as any);
+          }
+        });
+
+        return () => unsubscribeFirestore();
+
       } else {
-        // Si no hay un usuario, redirige a la página de login
         setUser(null);
         router.push("/login");
       }
     });
 
-    // Detiene la escucha y la suscripción cuando el componente se desmonta
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      unsubscribe();
+      unsubscribeAuth();
     };
   }, [auth, router]);
 
@@ -41,25 +71,55 @@ export default function VozPage() {
       return;
     }
 
-    // Si ya hay un proceso de reconocimiento, no iniciar uno nuevo
     if (recognitionRef.current) return;
 
     const recognition = new (window as any).webkitSpeechRecognition();
     recognition.lang = "es-CL";
-    recognition.continuous = true; // Ahora escucha de forma continua
+    recognition.continuous = true;
     recognition.interimResults = false;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = async (event: any) => {
       const lastResultIndex = event.results.length - 1;
       const transcript = event.results[lastResultIndex][0].transcript.toLowerCase();
       setText(transcript);
 
-      // Lógica de conteo de votos
-      const palabraClave = "pasto seco";
-      const regex = new RegExp(`\\b${palabraClave}\\b`, 'g');
-      const matches = transcript.match(regex) || [];
-      if (matches.length > 0) {
-        setVotos(prevVotos => prevVotos + matches.length);
+      const votosDocRef = doc(db, "resultados", "votos-2025");
+      const updatedVotos = { ...votos };
+
+      // Lógica de conteo para Presidente
+      const presidenteCandidatos = {
+        "fenomeno": ["fenomeno", "uno", "1"],
+        "candonga": ["candonga", "dos", "2"],
+        "pasto seco": ["pasto seco", "tres", "3"],
+        "blancos": ["blancos"],
+        "nulos": ["nulos"],
+      };
+
+      let votoRegistrado = false;
+      for (const candidato in presidenteCandidatos) {
+        if (presidenteCandidatos[candidato].some(alias => transcript.includes(alias))) {
+          updatedVotos.presidente[candidato] += 1;
+          votoRegistrado = true;
+        }
+      }
+
+      // Lógica de conteo para Diputado
+      const diputadoCandidatos = {
+        "manoslimpias": ["manoslimpias", "uno", "1"],
+        "cascote": ["cascote", "dos", "2"],
+        "blancos": ["blancos"],
+        "nulos": ["nulos"],
+      };
+
+      for (const candidato in diputadoCandidatos) {
+        if (diputadoCandidatos[candidato].some(alias => transcript.includes(alias))) {
+          updatedVotos.diputado[candidato] += 1;
+          votoRegistrado = true;
+        }
+      }
+
+      if (votoRegistrado) {
+        await updateDoc(votosDocRef, updatedVotos);
       }
     };
 
@@ -69,7 +129,6 @@ export default function VozPage() {
     };
 
     recognition.onend = () => {
-      // Limpia la referencia cuando el reconocimiento termina
       recognitionRef.current = null;
     };
 
@@ -83,7 +142,6 @@ export default function VozPage() {
     }
   };
 
-  // Muestra un mensaje de carga mientras se verifica el estado de autenticación
   if (!user) {
     return (
       <div className="container card" style={{ marginTop: 40 }}>
@@ -92,7 +150,6 @@ export default function VozPage() {
     );
   }
 
-  // Muestra el contenido de la página solo si el usuario está autenticado
   return (
     <div className="container card" style={{ marginTop: 40 }}>
       <h1>Registro por Voz</h1>
@@ -107,7 +164,25 @@ export default function VozPage() {
         <br />
         {text}
       </p>
-      <h2 style={{ marginTop: 20 }}>Votos Contados: {votos}</h2>
+      <h2 style={{ marginTop: 20 }}>Conteo de Votos</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 20 }}>
+        <div>
+          <h3>PRESIDENTE</h3>
+          <ul>
+            {Object.keys(votos.presidente).map((candidato) => (
+              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.presidente[candidato]}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3>DIPUTADO</h3>
+          <ul>
+            {Object.keys(votos.diputado).map((candidato) => (
+              <li key={candidato}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}: {votos.diputado[candidato]}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
