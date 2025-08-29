@@ -1,131 +1,98 @@
-"use client";
-
+'use client'
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, onSnapshot, query, Firestore } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { app } from "@/lib/firebase";
-import GraficoVotos from "@/components/GraficoVotos";
+import { User, getAuth, signInAnonymously } from "firebase/auth";
 
-// Define la estructura de los votos
-type Votos = {
-  [key: string]: {
-    [key: string]: number;
-  };
-};
+interface Voto {
+    id: string;
+    opcion: string;
+}
+
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 export default function ResultadosPage() {
-  const [resultados, setResultados] = useState<Votos | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [cargoSeleccionado, setCargoSeleccionado] = useState<string>('presidente');
+    const [votos, setVotos] = useState<Voto[]>([]);
+    const [conteo, setConteo] = useState<{ [key: string]: number }>({});
+    const [loading, setLoading] = useState(true);
+    const [db, setDb] = useState<Firestore | null>(null);
+    const [user, setUser] = useState<User | null>(null);
 
-  const auth = getAuth(app);
+    useEffect(() => {
+        try {
+            const app = initializeApp(firebaseConfig);
+            const firestore = getFirestore(app);
+            const auth = getAuth(app);
+            setDb(firestore);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, [auth]);
+            const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+                if (currentUser) {
+                    setUser(currentUser);
+                } else {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Error signing in:", error);
+                    }
+                }
+            });
 
-  useEffect(() => {
-    if (!authReady || !currentUser) {
-      return;
-    }
-
-    const resultadosCollectionRef = collection(db, "resultados_mesas");
-
-    const unsubscribe = onSnapshot(resultadosCollectionRef, (querySnapshot) => {
-      const allData: Votos = {};
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as Votos;
-        for (const cargo in data) {
-          if (!allData[cargo]) {
-            allData[cargo] = {};
-          }
-          for (const candidato in data[cargo]) {
-            if (!allData[cargo][candidato]) {
-              allData[cargo][candidato] = 0;
-            }
-            allData[cargo][candidato] += data[cargo][candidato];
-          }
+            return () => unsubscribe();
+        } catch (e) {
+            console.error("Error initializing Firebase:", e);
         }
-      });
-      setResultados(allData);
-    });
+    }, [initialAuthToken]);
 
-    return () => unsubscribe();
-  }, [authReady, currentUser]);
+    useEffect(() => {
+        if (db && user) {
+            const collectionPath = `/artifacts/${appId}/public/data/votos`;
+            const q = query(collection(db, collectionPath));
+            
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const conteoVotos: { [key: string]: number } = {};
+                const nuevosVotos: Voto[] = [];
+                snapshot.docs.forEach((doc) => {
+                    const data = doc.data() as Voto;
+                    nuevosVotos.push({ ...data, id: doc.id });
+                    conteoVotos[data.opcion] = (conteoVotos[data.opcion] || 0) + 1;
+                });
+                setVotos(nuevosVotos);
+                setConteo(conteoVotos);
+                setLoading(false);
+            }, (error) => {
+                console.error("Error fetching votes:", error);
+                setLoading(false);
+            });
+            return () => unsubscribe();
+        }
+    }, [db, user]);
 
-  if (!authReady) {
     return (
-      <div className="container" style={{ marginTop: 40 }}>
-        <p>Cargando autenticación...</p>
-      </div>
+        <main className="min-h-screen bg-gray-100 p-8 flex items-center justify-center">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-xl text-center">
+                <h1 className="text-3xl font-bold text-gray-800 mb-4">Conteo de Votos</h1>
+                <p className="text-gray-500 mb-6">Resultados en tiempo real</p>
+                {loading ? (
+                    <div className="text-gray-400">Cargando votos...</div>
+                ) : Object.keys(conteo).length === 0 ? (
+                    <div className="text-gray-400">Aún no hay votos registrados.</div>
+                ) : (
+                    <div className="space-y-4">
+                        {Object.entries(conteo).sort().map(([opcion, cantidad]) => (
+                            <div key={opcion} className="bg-blue-100 text-blue-800 p-4 rounded-lg flex justify-between items-center">
+                                <span className="font-medium text-lg">{opcion}</span>
+                                <span className="font-bold text-2xl">{cantidad}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </main>
     );
-  }
-
-  if (!currentUser) {
-    return (
-      <div className="container" style={{ marginTop: 40 }}>
-        <p>Necesitas <a href="/login">iniciar sesión</a> para ver los resultados.</p>
-      </div>
-    );
-  }
-
-  const handleCargoChange = (cargo: string) => {
-    setCargoSeleccionado(cargo);
-  };
-
-  const votosDelCargo = resultados ? resultados[cargoSeleccionado] : {};
-  const tituloGrafico = `Resultados para ${cargoSeleccionado.charAt(0).toUpperCase() + cargoSeleccionado.slice(1)}`;
-
-  return (
-    <div className="container card" style={{ marginTop: 40 }}>
-      <h1>Resultados Consolidados</h1>
-      
-      <div className="flex space-x-4 mb-8">
-        <button 
-          onClick={() => handleCargoChange('presidente')} 
-          className={`button ${cargoSeleccionado === 'presidente' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
-        >
-          Presidente
-        </button>
-        <button 
-          onClick={() => handleCargoChange('diputado')} 
-          className={`button ${cargoSeleccionado === 'diputado' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
-        >
-          Diputado
-        </button>
-      </div>
-
-      {resultados ? (
-        <GraficoVotos votos={votosDelCargo} titulo={tituloGrafico} />
-      ) : (
-        <p>No hay resultados disponibles.</p>
-      )}
-
-      <div style={{ marginTop: 40 }}>
-        <h2 className="text-xl font-semibold mb-2">{tituloGrafico} (Datos de tabla)</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f2f2f2' }}>
-              <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Candidato</th>
-              <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Votos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.keys(votosDelCargo).map((candidato) => (
-              <tr key={candidato}>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{candidato.charAt(0).toUpperCase() + candidato.slice(1)}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>{votosDelCargo[candidato]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 }
