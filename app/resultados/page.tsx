@@ -1,8 +1,14 @@
 'use client'
+
+// Declaraciones para las variables globales, esto soluciona el error de TypeScript en Vercel
+declare const __firebase_config: string;
+declare const __app_id: string;
+declare const __initial_auth_token: string;
+
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, query, Firestore } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { User, getAuth, signInAnonymously } from "firebase/auth";
+import { User, getAuth, signInAnonymously, signInWithCustomToken } from "firebase/auth";
 
 interface Voto {
     id: string;
