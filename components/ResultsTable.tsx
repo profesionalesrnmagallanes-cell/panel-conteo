@@ -1,4 +1,6 @@
-"use client";
+'use client';
+
+import React from 'react';
 
 type Row = {
   candidatoId: string;

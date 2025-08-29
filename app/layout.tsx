@@ -1,12 +1,9 @@
-import './globals.css';
-import { Inter } from 'next/font/google';
+import React from 'react';
 
 export const metadata = {
   title: "Resultados en tiempo real",
   description: "Next.js + Firebase/Firestore - Conteo por local/mesa/cargo/candidato"
 };
-
-const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children
@@ -15,7 +12,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className={inter.className}>
+      <body className="font-sans">
         {children}
       </body>
     </html>

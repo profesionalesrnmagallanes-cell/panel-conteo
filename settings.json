@@ -1,0 +1,7 @@
+{
+    "editor.wordWrap": "on",
+    "files.associations": {
+        "*.css": "tailwindcss"
+    },
+    "editor.formatOnSave": true
+}

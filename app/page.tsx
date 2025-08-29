@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import React from 'react';
 
 export default function HomePage() {
   return (
@@ -11,21 +11,15 @@ export default function HomePage() {
       </p>
       
       <div className="flex flex-col space-y-4">
-        <Link href="/voz" legacyBehavior>
-          <a className="button bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
-            Ir al Panel de Conteo por Voz
-          </a>
-        </Link>
-        <Link href="/resultados" legacyBehavior>
-          <a className="button bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
-            Ir a los Resultados Consolidados
-          </a>
-        </Link>
-        <Link href="/login" legacyBehavior>
-          <a className="button bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
-            Iniciar Sesión
-          </a>
-        </Link>
+        <a href="/voz" className="button bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
+          Ir al Panel de Conteo por Voz
+        </a>
+        <a href="/resultados" className="button bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
+          Ir a los Resultados Consolidados
+        </a>
+        <a href="/login" className="button bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors duration-200">
+          Iniciar Sesión
+        </a>
       </div>
     </div>
   );
