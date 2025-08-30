@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously, Auth } from "firebase/auth";
-import { getFirestore, collection, onSnapshot, query, where, Firestore, DocumentData, doc, setDoc, updateDoc } from "firebase/firestore";
+import { getFirestore, collection, onSnapshot, query, where, Firestore, DocumentData, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // Declarar variables globales para que TypeScript no arroje errores
 declare global {
@@ -33,9 +34,9 @@ interface TableRepProfile {
 interface Candidate {
   id: string;
   name: string;
+  number?: string;
 }
 
-// Definir las interfaces para los objetos de reconocimiento de voz para evitar errores de tipo.
 interface SpeechRecognition extends EventTarget {
   grammars: any;
   continuous: boolean;
@@ -60,7 +61,6 @@ interface SpeechRecognitionErrorEvent extends Event {
   message: string;
 }
 
-// Global variable for SpeechRecognition, to be used safely.
 declare global {
   interface Window {
     webkitSpeechRecognition: any;
@@ -81,12 +81,12 @@ export default function TableRepDashboard() {
   const [voteCountsMap, setVoteCountsMap] = useState<Map<string, number>>(new Map());
   const [isProcessValidated, setIsProcessValidated] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [lastVotedCandidate, setLastVotedCandidate] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [actaImageUrl, setActaImageUrl] = useState<string | null>(null);
 
-  // Referencia al objeto de reconocimiento de voz para controlarlo
   const recognitionRef = useRef<any | null>(null);
 
-
-  // Efecto para inicializar Firebase y manejar la autenticación
   useEffect(() => {
     try {
       const app = initializeApp(firebaseConfig);
@@ -97,7 +97,6 @@ export default function TableRepDashboard() {
 
       const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
         if (!user) {
-          console.log("Usuario no autenticado, iniciando sesión anónimamente...");
           try {
             if (initialAuthToken) {
               await signInWithCustomToken(firebaseAuth, initialAuthToken);
@@ -110,7 +109,6 @@ export default function TableRepDashboard() {
           }
         } else {
           setTableRepId(user.uid);
-          console.log("Usuario autenticado. ID:", user.uid);
         }
         setIsAuthReady(true);
       });
@@ -122,12 +120,10 @@ export default function TableRepDashboard() {
     }
   }, []);
 
-  // Efecto para obtener el perfil del apoderado de mesa
   useEffect(() => {
     if (!db || !isAuthReady || !tableRepId) return;
-    
+
     const profileDocRef = doc(db, "artifacts", appId, "public", "table_rep_profiles", tableRepId);
-    console.log("Fetching table rep profile for path:", profileDocRef.path);
 
     const unsubscribe = onSnapshot(profileDocRef, (docSnapshot) => {
         if (docSnapshot.exists()) {
@@ -143,13 +139,12 @@ export default function TableRepDashboard() {
   }, [db, isAuthReady, tableRepId]);
 
 
-  // Efecto para obtener los candidatos de la elección
   useEffect(() => {
     if (!db || !isAuthReady || !tableRepProfile?.electionId) return;
 
     const candidatesCollectionPath = `/artifacts/${appId}/public/elections/${tableRepProfile.electionId}/candidates`;
     const q = query(collection(db, candidatesCollectionPath));
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const candidatesList: Candidate[] = [];
       querySnapshot.forEach((doc) => {
@@ -157,6 +152,7 @@ export default function TableRepDashboard() {
         candidatesList.push({
           id: doc.id,
           name: data.name,
+          number: data.number,
         });
       });
       setCandidates(candidatesList);
@@ -171,17 +167,16 @@ export default function TableRepDashboard() {
   }, [db, isAuthReady, tableRepProfile]);
 
 
-  // Efecto para obtener los conteos de votos en tiempo real para la mesa actual
   useEffect(() => {
     if (!db || !isAuthReady || !tableRepProfile?.mesa || !tableRepProfile?.electionId) return;
-    
+
     const votesCollectionPath = `/artifacts/${appId}/public/votes`;
     const q = query(
       collection(db, votesCollectionPath),
       where("mesa", "==", tableRepProfile.mesa),
       where("electionId", "==", tableRepProfile.electionId)
     );
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const newMap = new Map<string, number>();
       querySnapshot.forEach((doc) => {
@@ -200,109 +195,132 @@ export default function TableRepDashboard() {
   }, [db, isAuthReady, tableRepProfile]);
 
 
-  // Manejador para actualizar los conteos de votos
-  const handleUpdateVote = async (candidateName: string, votes: number) => {
+  const handleUpdateVote = async (candidateName: string, newVotes: number) => {
     if (!db || !tableRepProfile || isProcessValidated) {
       setError("Base de datos no disponible, perfil no cargado o proceso ya validado.");
       return;
     }
-    
+
     try {
       const votesCollectionPath = `/artifacts/${appId}/public/votes`;
-      // El id del documento será una combinación de la mesa y el nombre del candidato para asegurar unicidad
       const docId = `${tableRepProfile.mesa}-${candidateName.replace(/\s+/g, '-').toLowerCase()}`;
       const docRef = doc(db, votesCollectionPath, docId);
 
-      await setDoc(docRef, {
-        mesa: tableRepProfile.mesa,
-        local: tableRepProfile.local,
-        comuna: tableRepProfile.comuna,
-        region: tableRepProfile.region,
-        electionId: tableRepProfile.electionId,
-        candidate: candidateName,
-        votes: votes,
-      }, { merge: true });
-
-      setSuccessMessage(`Votos de ${candidateName} actualizados con éxito.`);
+      if (newVotes <= 0) {
+        await deleteDoc(docRef);
+        setSuccessMessage(`Votos de ${candidateName} eliminados.`);
+      } else {
+        await setDoc(docRef, {
+          mesa: tableRepProfile.mesa,
+          local: tableRepProfile.local,
+          comuna: tableRepProfile.comuna,
+          region: tableRepProfile.region,
+          electionId: tableRepProfile.electionId,
+          candidate: candidateName,
+          votes: newVotes,
+        }, { merge: true });
+        setSuccessMessage(`Votos de ${candidateName} actualizados a ${newVotes}.`);
+      }
+      setLastVotedCandidate(candidateName);
     } catch (e) {
       console.error("Error al actualizar votos:", e);
       setError("Error al actualizar votos. Por favor, inténtelo de nuevo.");
     }
   };
 
-  // Lógica de reconocimiento de voz
+
   const handleVoiceCommand = (transcript: string) => {
     if (isProcessValidated) {
       setError("El proceso ya ha sido validado. No se pueden actualizar los votos.");
       return;
     }
 
-    // Normalizar la transcripción
     const cleanTranscript = transcript.toLowerCase().trim();
     
-    const words = cleanTranscript.split(/\s+/);
-    let action = '';
-    let votes = 1;
-    let target = '';
-
-    if (words.length >= 2) {
-      action = words[0];
-      
-      if (!isNaN(parseInt(words[1], 10))) {
-        votes = parseInt(words[1], 10);
-        target = words.slice(3).join(' ');
-      } else {
-        votes = 1;
-        target = words.slice(1).join(' ');
-      }
-    }
-    
     let candidateName = '';
-    let targetVotes = 0;
+    let change = 1;
+    let commandFound = false;
 
-    for (const c of candidates) {
-      if (cleanTranscript.includes(c.name.toLowerCase())) {
-        candidateName = c.name;
-        break;
+    // Palabras clave para restar un voto
+    const negativeKeywords = ['restar', 'eliminar', 'borrar', 'sacar'];
+
+    // Lógica para detectar el comando de corrección
+    if (negativeKeywords.some(keyword => cleanTranscript.startsWith(keyword))) {
+      change = -1;
+      commandFound = true;
+      const restOfTranscript = negativeKeywords.reduce((acc, keyword) => acc.replace(keyword, ''), cleanTranscript).trim();
+
+      // Lógica para el comando "de lo ultimo" o "anterior"
+      if (restOfTranscript.includes('lo ultimo') || restOfTranscript.includes('anterior')) {
+        if (lastVotedCandidate) {
+          candidateName = lastVotedCandidate;
+        } else {
+          setError("No se ha registrado ningún voto anterior para corregir.");
+          return;
+        }
+      } else {
+        // Buscar el candidato en el resto de la transcripción
+        for (const c of candidates) {
+          if (restOfTranscript.includes(c.name.toLowerCase())) {
+            candidateName = c.name;
+            break;
+          }
+          const nameParts = c.name.toLowerCase().split(/\s+/);
+          if (nameParts.length > 1 && restOfTranscript.includes(nameParts[1])) {
+            candidateName = c.name;
+            break;
+          }
+          if (c.number && restOfTranscript.includes(c.number)) {
+            candidateName = c.name;
+            break;
+          }
+        }
+        if (!candidateName) {
+          if (restOfTranscript.includes('blanco')) {
+            candidateName = 'Blanco';
+          } else if (restOfTranscript.includes('nulo')) {
+            candidateName = 'Nulo';
+          }
+        }
+      }
+    } else {
+      // Lógica para detectar el comando de suma (valor por defecto)
+      for (const c of candidates) {
+        if (cleanTranscript.includes(c.name.toLowerCase())) {
+          candidateName = c.name;
+          break;
+        }
+        const nameParts = c.name.toLowerCase().split(/\s+/);
+        if (nameParts.length > 1 && cleanTranscript.includes(nameParts[1])) {
+          candidateName = c.name;
+          break;
+        }
+        if (c.number && cleanTranscript.includes(c.number)) {
+          candidateName = c.name;
+          break;
+        }
+      }
+      if (!candidateName) {
+        if (cleanTranscript.includes('blanco')) {
+          candidateName = 'Blanco';
+        } else if (cleanTranscript.includes('nulo')) {
+          candidateName = 'Nulo';
+        }
       }
     }
 
-    if (cleanTranscript.includes('blanco')) {
-      candidateName = 'Blanco';
-    } else if (cleanTranscript.includes('nulo')) {
-      candidateName = 'Nulo';
-    }
-    
     if (!candidateName) {
-      setError("Comando no reconocido. Diga un nombre de candidato, 'blanco' o 'nulo'.");
+      setError("Comando no reconocido. Por favor, intente de nuevo.");
       return;
     }
 
     const currentVotes = voteCountsMap.get(candidateName) || 0;
+    const newVotes = currentVotes + change;
     
-    if (cleanTranscript.includes('sumar') || cleanTranscript.includes('añadir')) {
-      targetVotes = currentVotes + votes;
-      setSuccessMessage(`Sumando ${votes} voto(s) a ${candidateName}.`);
-    } else if (cleanTranscript.includes('establecer') || cleanTranscript.includes('poner')) {
-      if (isNaN(votes)) {
-        setError("Comando 'establecer' requiere un número de votos. Intente 'Establecer 50 para Juan Pérez'.");
-        return;
-      }
-      targetVotes = votes;
-      setSuccessMessage(`Estableciendo los votos de ${candidateName} a ${votes}.`);
-    } else if (cleanTranscript.includes('restar') || cleanTranscript.includes('quitar')) {
-      targetVotes = Math.max(0, currentVotes - votes);
-      setSuccessMessage(`Restando ${votes} voto(s) a ${candidateName}.`);
-    } else {
-      targetVotes = currentVotes + 1;
-      setSuccessMessage(`Sumando 1 voto a ${candidateName}.`);
-    }
-
-    handleUpdateVote(candidateName, targetVotes);
+    handleUpdateVote(candidateName, newVotes);
   };
 
 
-  // Iniciar/detener la escucha
   const toggleListening = () => {
     if (isProcessValidated) {
       setError("El proceso ya ha sido validado. No se puede activar el micrófono.");
@@ -349,11 +367,37 @@ export default function TableRepDashboard() {
     }
   };
 
-  // -------------------------------------------------------------------------
-  // NUEVA LÓGICA AGREGADA AQUÍ: EL BOTÓN "VALIDAR PROCESO DE ESCRUTINIO"
-  // -------------------------------------------------------------------------
 
-  // Lógica para validar el proceso de escrutinio
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !db || !tableRepProfile) {
+      setError("No se ha seleccionado ninguna foto o falta la información del perfil.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setError(null);
+
+    try {
+      const storage = getStorage(initializeApp(firebaseConfig));
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${tableRepProfile.mesa}-${tableRepProfile.electionId}-${Date.now()}.${fileExtension}`;
+      const storageRef = ref(storage, `actas/${fileName}`);
+
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      setActaImageUrl(url);
+      setSuccessMessage("¡Foto del acta cargada con éxito!");
+
+    } catch (e) {
+      console.error("Error al subir el archivo:", e);
+      setError("Error al subir la foto del acta. Por favor, intente de nuevo.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleValidateProcess = async () => {
     if (!db || !tableRepProfile) {
       setError("Base de datos no disponible o perfil no cargado.");
@@ -364,7 +408,6 @@ export default function TableRepDashboard() {
     setError(null);
 
     try {
-      // Crear un objeto con los resultados finales, incluyendo votos en blanco y nulos
       const finalResults = {
         mesa: tableRepProfile.mesa,
         local: tableRepProfile.local,
@@ -374,21 +417,19 @@ export default function TableRepDashboard() {
         validatedBy: tableRepProfile.id,
         timestamp: new Date().toISOString(),
         voteCounts: Object.fromEntries(voteCountsMap),
+        actaImageUrl: actaImageUrl, // Aquí se añade la URL de la foto del acta
         status: 'validated'
       };
 
-      // Guardar los resultados finales en una nueva colección
       const validatedResultsCollectionPath = `/artifacts/${appId}/public/validated_results`;
       const docRef = doc(db, validatedResultsCollectionPath, `${tableRepProfile.mesa}-${tableRepProfile.electionId}`);
       await setDoc(docRef, finalResults);
 
-      // Actualizar el estado para deshabilitar los controles y mostrar el modal
       setIsProcessValidated(true);
       setShowValidationModal(true);
       setSuccessMessage("¡Proceso de escrutinio validado y guardado con éxito!");
       setLoading(false);
 
-      // Ocultar el modal después de 3 segundos
       setTimeout(() => {
         setShowValidationModal(false);
       }, 3000);
@@ -406,14 +447,12 @@ export default function TableRepDashboard() {
       <div className="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 my-8">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-green-600 dark:text-green-400 mb-2">Panel de Apoderado de Mesa</h1>
         <p className="text-center text-lg text-gray-600 dark:text-gray-300 mb-8">
-          Bienvenido. Aquí puedes cargar los conteos de votos de tu mesa, {tableRepProfile?.mesa || '...'}.
+          Mesa: **{tableRepProfile?.mesa || '...'}** | Local: **{tableRepProfile?.local || '...'}** | Elección: **{tableRepProfile?.electionName || '...'}**
         </p>
-        
-        {/* Mensajes de estado */}
+
         {error && <p className="text-center text-red-500 mb-4">{error}</p>}
         {successMessage && <p className="text-center text-green-500 mb-4">{successMessage}</p>}
         
-        {/* Sección de Carga de Votos por Voz */}
         <div className="mb-8 p-6 bg-green-50 dark:bg-green-900 rounded-xl shadow-inner text-center">
           <h2 className="text-2xl font-bold mb-4">Carga de Datos por Voz</h2>
           <button
@@ -428,33 +467,36 @@ export default function TableRepDashboard() {
             {isListening ? 'Detener Conteo' : 'Activar Micrófono'}
           </button>
           <p className="mt-4 text-gray-700 dark:text-gray-300">
-            Diga "Sumar 50 para Juan Pérez" o "Establecer 100 para María López". También "Sumar uno para blanco".
+            **Para agregar un voto:** Diga el nombre completo del candidato, su apellido, o su número de lista. Por ejemplo: "Juanito Arcoiris", "Arcoiris" o "70". También diga "Blanco" o "Nulo".
+            <br />
+            **Para corregir (restar) un voto:** Diga **"restar"**, **"eliminar"**, **"borrar"** o **"sacar"** seguido del nombre del candidato. Por ejemplo: "Restar Juanito Arcoiris" o "Sacar Nulo".
+            <br />
+            **Para corregir el último voto:** Diga **"restar lo anterior"** o **"eliminar el último"**.
           </p>
         </div>
 
-        {/* Sección de Conteo de Votos en tiempo real */}
-        <h2 className="text-2xl font-bold mb-4">Conteo de Votos en Mesa {tableRepProfile?.mesa || '...'}</h2>
+        <h2 className="text-2xl font-bold mb-4">Conteo de Votos en Tiempo Real</h2>
         
         {loading && !error ? (
           <p className="text-center text-gray-500">Cargando conteo de votos...</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {candidates.map(candidate => (
-              <div key={candidate.id} className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm">
-                <h3 className="text-lg font-semibold">{candidate.name}</h3>
+              <div key={candidate.id} className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm flex flex-col items-center">
+                <h3 className="text-lg font-semibold text-center">{candidate.name}</h3>
                 <p className="text-3xl font-bold mt-1 text-green-600 dark:text-green-400">
                   {voteCountsMap.get(candidate.name) || 0}
                 </p>
               </div>
             ))}
-             <div className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm">
-                <h3 className="text-lg font-semibold">Votos Blancos</h3>
+              <div className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm flex flex-col items-center">
+                <h3 className="text-lg font-semibold text-center">Votos Blancos</h3>
                 <p className="text-3xl font-bold mt-1 text-green-600 dark:text-green-400">
                   {voteCountsMap.get('Blanco') || 0}
                 </p>
               </div>
-              <div className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm">
-                <h3 className="text-lg font-semibold">Votos Nulos</h3>
+              <div className="bg-green-100 dark:bg-green-800 rounded-lg p-4 shadow-sm flex flex-col items-center">
+                <h3 className="text-lg font-semibold text-center">Votos Nulos</h3>
                 <p className="text-3xl font-bold mt-1 text-green-600 dark:text-green-400">
                   {voteCountsMap.get('Nulo') || 0}
                 </p>
@@ -462,7 +504,28 @@ export default function TableRepDashboard() {
           </div>
         )}
 
-        {/* Sección de validación del proceso */}
+        <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-bold mb-4">Adjuntar Acta de Votación</h2>
+          <label htmlFor="acta-upload" className="w-full py-3 px-6 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition duration-300 cursor-pointer text-center block">
+            {uploadingImage ? 'Subiendo...' : 'Tomar Foto del Acta'}
+          </label>
+          <input
+            id="acta-upload"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+            disabled={isProcessValidated}
+          />
+          {actaImageUrl && (
+            <div className="mt-4">
+              <p className="text-center text-green-500 mb-2">¡Foto cargada con éxito!</p>
+              <img src={actaImageUrl} alt="Acta de Votación" className="mx-auto rounded-lg shadow-md max-w-full h-auto" />
+            </div>
+          )}
+        </div>
+
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={handleValidateProcess}
