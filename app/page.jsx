@@ -5,6 +5,53 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "firebase/auth";
 import { getFirestore, doc, getDoc, onSnapshot, collection, query, where, getDocs, setDoc, addDoc } from 'firebase/firestore';
 
+// Componente para la ventana modal de resultados
+const ResultsModal = ({ table, onClose }) => {
+  if (!table) {
+    return null;
+  }
+
+  const { id, votes } = table;
+  const totalVotes = votes.alliance + votes.candidateA + votes.candidateB;
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+      <div className="bg-white p-8 rounded-lg shadow-2xl max-w-lg w-full transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-xl font-bold text-gray-900">Resultados de la Mesa: {id}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="text-gray-700 space-y-4">
+          <div className="bg-blue-50 p-4 rounded-md">
+            <p className="text-lg font-semibold text-blue-800">Votos de la Alianza</p>
+            <p className="text-2xl font-bold text-blue-900">{votes.alliance}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-md">
+            <p className="text-lg font-semibold text-green-800">Votos Candidato A</p>
+            <p className="text-2xl font-bold text-green-900">{votes.candidateA}</p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-md">
+            <p className="text-lg font-semibold text-red-800">Votos Candidato B</p>
+            <p className="text-2xl font-bold text-red-900">{votes.candidateB}</p>
+          </div>
+          <hr className="my-4 border-t border-gray-300" />
+          <div className="bg-gray-100 p-4 rounded-md">
+            <p className="text-lg font-semibold text-gray-800">Total de Votos</p>
+            <p className="text-2xl font-bold text-gray-900">{totalVotes}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Componente para la tabla de datos
 const Table = ({ data, onAdjustVotes, onViewResults }) => {
   const [editingRow, setEditingRow] = useState(null);
@@ -116,16 +163,16 @@ const Table = ({ data, onAdjustVotes, onViewResults }) => {
                 ) : (
                   <>
                     <button
-                      onClick={() => handleEdit(item.id)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
-                    >
-                      Ajustar Votos
-                    </button>
-                    <button
-                      onClick={() => onViewResults(item.id)}
-                      className="text-blue-600 hover:text-blue-900"
+                      onClick={() => onViewResults(item)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
                     >
                       Ver Resultados
+                    </button>
+                    <button
+                      onClick={() => handleEdit(item.id)}
+                      className="text-indigo-600 hover:text-indigo-900"
+                    >
+                      Ajustar Votos
                     </button>
                   </>
                 )}
@@ -144,10 +191,11 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [tables, setTables] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [selectedTable, setSelectedTable] = useState(null);
 
   useEffect(() => {
     try {
-      // Usar las variables globales proporcionadas por el entorno de Canvas
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
@@ -155,9 +203,6 @@ export default function AdminPanel() {
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-
-        // Establecer el nivel de registro para depuración de Firestore
-        // setLogLevel('Debug');
 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (user) {
@@ -175,7 +220,6 @@ export default function AdminPanel() {
               setIsAdmin(false);
             }
           } else {
-            // Manejar la autenticación anónima si no se proporciona un token
             try {
               if (typeof __initial_auth_token !== 'undefined') {
                 await signInWithCustomToken(auth, __initial_auth_token);
@@ -189,7 +233,6 @@ export default function AdminPanel() {
           setLoading(false);
         });
 
-        // Limpiar la suscripción al desmontar el componente
         return () => unsubscribe();
       } else {
         console.error("Firebase no está configurado. Revisa tus credenciales.");
@@ -201,7 +244,6 @@ export default function AdminPanel() {
     }
   }, []);
 
-  // Hook para escuchar los cambios en la colección 'mesas' de Firestore en tiempo real
   useEffect(() => {
     let unsubscribe = () => {};
     if (isAdmin) {
@@ -216,7 +258,6 @@ export default function AdminPanel() {
           querySnapshot.forEach((doc) => {
             fetchedTables.push({ id: doc.id, ...doc.data() });
           });
-          // Ordenar los datos alfabéticamente por 'id'
           fetchedTables.sort((a, b) => a.id.localeCompare(b.id));
           setTables(fetchedTables);
         }, (error) => {
@@ -224,7 +265,6 @@ export default function AdminPanel() {
         });
       }
     }
-    // Limpiar la suscripción al desmontar o si isAdmin cambia a false
     return () => unsubscribe();
   }, [isAdmin]);
 
@@ -244,9 +284,9 @@ export default function AdminPanel() {
     }
   };
 
-  const handleViewResults = (tableId) => {
-    console.log(`Ver resultados de la mesa ${tableId}`);
-    // Aquí puedes agregar la lógica para mostrar un modal o redirigir a otra página
+  const handleViewResults = (table) => {
+    setSelectedTable(table);
+    setShowResultsModal(true);
   };
 
   if (loading) {
@@ -302,6 +342,13 @@ export default function AdminPanel() {
           onViewResults={handleViewResults}
         />
       </main>
+
+      {showResultsModal && (
+        <ResultsModal
+          table={selectedTable}
+          onClose={() => setShowResultsModal(false)}
+        />
+      )}
     </div>
   );
 }
