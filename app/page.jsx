@@ -194,6 +194,11 @@ export default function AdminPanel() {
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
 
+  // Estados para los totales de votos
+  const [totalAlliance, setTotalAlliance] = useState(0);
+  const [totalCandidateA, setTotalCandidateA] = useState(0);
+  const [totalCandidateB, setTotalCandidateB] = useState(0);
+
   useEffect(() => {
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -255,11 +260,30 @@ export default function AdminPanel() {
         const q = collection(db, `/artifacts/${appId}/public/data/mesas`);
         unsubscribe = onSnapshot(q, (querySnapshot) => {
           const fetchedTables = [];
+          let tempTotalAlliance = 0;
+          let tempTotalCandidateA = 0;
+          let tempTotalCandidateB = 0;
+
           querySnapshot.forEach((doc) => {
-            fetchedTables.push({ id: doc.id, ...doc.data() });
+            const tableData = doc.data();
+            fetchedTables.push({ id: doc.id, ...tableData });
+
+            // Sumar los votos para el total general
+            if (tableData.votes) {
+              tempTotalAlliance += tableData.votes.alliance || 0;
+              tempTotalCandidateA += tableData.votes.candidateA || 0;
+              tempTotalCandidateB += tableData.votes.candidateB || 0;
+            }
           });
+
           fetchedTables.sort((a, b) => a.id.localeCompare(b.id));
           setTables(fetchedTables);
+
+          // Actualizar los estados de los totales
+          setTotalAlliance(tempTotalAlliance);
+          setTotalCandidateA(tempTotalCandidateA);
+          setTotalCandidateB(tempTotalCandidateB);
+
         }, (error) => {
           console.error("Error al obtener las mesas:", error);
         });
@@ -323,15 +347,15 @@ export default function AdminPanel() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-blue-100 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-blue-800">Total Votos Alianza</h3>
-              <p className="text-3xl font-bold text-blue-900">0</p>
+              <p className="text-3xl font-bold text-blue-900">{totalAlliance}</p>
             </div>
             <div className="bg-green-100 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-green-800">Total Votos Candidato A</h3>
-              <p className="text-3xl font-bold text-green-900">0</p>
+              <p className="text-3xl font-bold text-green-900">{totalCandidateA}</p>
             </div>
             <div className="bg-red-100 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-red-800">Total Votos Candidato B</h3>
-              <p className="text-3xl font-bold text-red-900">0</p>
+              <p className="text-3xl font-bold text-red-900">{totalCandidateB}</p>
             </div>
           </div>
         </div>
