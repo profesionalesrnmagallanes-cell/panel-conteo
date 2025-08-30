@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "firebase/auth";
-import { getFirestore, doc, getDoc, onSnapshot, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, onSnapshot, collection, query, where, getDocs, setDoc, addDoc } from 'firebase/firestore';
 
 // Componente para la tabla de datos
 const Table = ({ data, onAdjustVotes, onViewResults }) => {
@@ -157,7 +157,7 @@ export default function AdminPanel() {
         const auth = getAuth(app);
 
         // Establecer el nivel de registro para depuración de Firestore
-        setLogLevel('Debug');
+        // setLogLevel('Debug');
 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (user) {
