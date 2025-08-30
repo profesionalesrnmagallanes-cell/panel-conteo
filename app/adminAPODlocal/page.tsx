@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 
 // Define una interfaz para los datos de la mesa para una mejor tipificación
