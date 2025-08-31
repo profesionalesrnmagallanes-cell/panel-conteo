@@ -22,10 +22,19 @@
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variables globales del entorno de Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // Configuración de Firebase proporcionada por el usuario
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMzhSn3k1J_5yAR9vIh_thaKPre7n8DUw",
+            authDomain: "conteo-en-vivo.firebaseapp.com",
+            projectId: "conteo-en-vivo",
+            storageBucket: "conteo-en-vivo.firebasestorage.app",
+            messagingSenderId: "904608064786",
+            appId: "1:904608064786:web:134286ae96c14187087fcb",
+            measurementId: "G-6ENPEC81RD"
+        };
+        
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         const messageEl = document.getElementById('message');
         const loaderEl = document.getElementById('loader');
@@ -38,8 +47,8 @@
 
         const setupAdmin = async (userId) => {
             try {
-                if (!firebaseConfig) {
-                    throw new Error("Configuración de Firebase no encontrada.");
+                if (!firebaseConfig || !firebaseConfig.projectId) {
+                    throw new Error("Configuración de Firebase no válida o faltante. Por favor, pégala en el código.");
                 }
 
                 const app = initializeApp(firebaseConfig);
@@ -47,7 +56,6 @@
 
                 const adminDocRef = doc(db, `artifacts/${appId}/users`, userId);
                 
-                // Intenta establecer el documento del usuario como administrador
                 await setDoc(adminDocRef, {
                     role: "admin",
                     createdAt: new Date()
@@ -63,23 +71,14 @@
 
         const init = async () => {
             try {
-                if (!firebaseConfig) {
-                    throw new Error("Configuración de Firebase no encontrada.");
-                }
-
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
-
-                // Espera a que el estado de autenticación cambie.
-                // onAuthStateChanged se dispara al iniciar sesión.
+                
                 const unsubscribe = onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // El usuario está autenticado, ahora podemos escribir
-                        // Este es el paso crucial que faltaba.
                         await setupAdmin(user.uid);
-                        unsubscribe(); // Detiene el listener después de la operación
+                        unsubscribe(); 
                     } else {
-                        // No hay usuario, intenta iniciar sesión.
                         try {
                             if (initialAuthToken) {
                                 await signInWithCustomToken(auth, initialAuthToken);
