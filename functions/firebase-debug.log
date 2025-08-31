@@ -269,3 +269,40 @@ Issues? Report them at https://github.com/firebase/firebase-tools/issues and att
 [debug] [2025-08-31T19:41:18.116Z] Got response from /__/functions.yaml {"endpoints":{"setAdminClaim":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":10,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"setAdminClaim"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
 [info] +  functions: Loaded functions definitions from source: setAdminClaim. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: setAdminClaim."}}
 [info] +  functions[us-central1-setAdminClaim]: http function initialized (http://127.0.0.1:5001/conteo-en-vivo/us-central1/setAdminClaim). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://127.0.0.1:5001/conteo-en-vivo/us-central1/setAdminClaim)."}}
+[debug] [2025-08-31T19:44:07.325Z] File C:\Users\César\Desktop\Reels\Conteo Git Clon\panel-conteo\functions\temp-script.js changed, reloading triggers {"metadata":{"emulator":{"name":"functions"},"message":"File C:\\Users\\César\\Desktop\\Reels\\Conteo Git Clon\\panel-conteo\\functions\\temp-script.js changed, reloading triggers"}}
+[debug] [2025-08-31T19:44:08.331Z] Validating nodejs source
+[debug] [2025-08-31T19:44:09.825Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "lint": "eslint .",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0",
+    "firebase-functions-test": "^3.1.0"
+  },
+  "private": true
+}
+[debug] [2025-08-31T19:44:09.825Z] Building nodejs source
+[debug] [2025-08-31T19:44:09.825Z] Failed to find version of module node: reached end of search path C:\Users\César\Desktop\Reels\Conteo Git Clon\panel-conteo\functions\node_modules
+[info] +  functions: Using node@22 from host. 
+[debug] [2025-08-31T19:44:09.827Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-08-31T19:44:09.833Z] Found firebase-functions binary at 'C:\Users\César\Desktop\Reels\Conteo Git Clon\panel-conteo\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8685
+
+[debug] [2025-08-31T19:44:10.638Z] Got response from /__/functions.yaml {"endpoints":{"setAdminClaim":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":10,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"callableTrigger":{},"entryPoint":"setAdminClaim"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[info] +  functions: Loaded functions definitions from source: setAdminClaim. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: setAdminClaim."}}
