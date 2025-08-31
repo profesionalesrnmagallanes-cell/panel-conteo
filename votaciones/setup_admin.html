@@ -48,7 +48,7 @@
         const setupAdmin = async (userId) => {
             try {
                 if (!firebaseConfig || !firebaseConfig.projectId) {
-                    throw new Error("Configuración de Firebase no válida o faltante. Por favor, pégala en el código.");
+                    throw new Error("Configuración de Firebase no válida o faltante.");
                 }
 
                 const app = initializeApp(firebaseConfig);
@@ -62,7 +62,7 @@
                 }, { merge: true });
 
                 displayMessage("Configuración de Administrador exitosa.");
-                console.log("Documento de administrador creado con éxito en Firestore.");
+                console.log("Documento de administrador creado con éxito en Firestore para el userId:", userId);
             } catch (e) {
                 console.error("Error al configurar el administrador:", e);
                 displayMessage(`Error: ${e.message}`, true);
@@ -76,6 +76,7 @@
                 
                 const unsubscribe = onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        console.log("Autenticación exitosa. User ID:", user.uid);
                         await setupAdmin(user.uid);
                         unsubscribe(); 
                     } else {
