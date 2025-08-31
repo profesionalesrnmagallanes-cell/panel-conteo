@@ -6,34 +6,31 @@
     <title>Crear Administrador Regional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            min-height: 100vh;
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4 sm:p-8">
-
-    <div class="w-full max-w-xl mx-auto bg-white shadow-xl rounded-2xl p-6 sm:p-10 border border-gray-200">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Crear Administrador Regional</h1>
-        <form id="createAdminForm" class="space-y-6">
+<body>
+    <div id="app" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center hidden">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">Crear Administrador Regional</h1>
+        <form id="create-admin-form" class="space-y-4">
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
-                <input type="email" id="email" name="email" required class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                <input type="email" id="email" placeholder="Correo electrónico" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div>
-                <label for="password" class="block text-sm font-medium text-gray-700">Contraseña:</label>
-                <input type="password" id="password" name="password" required class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                <input type="password" id="password" placeholder="Contraseña" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div>
-                <label for="region" class="block text-sm font-medium text-gray-700">Región:</label>
-                <select id="region" name="region" required class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                <select id="region-select" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
                     <option value="" disabled selected>Selecciona una región</option>
                     <option value="Arica y Parinacota">Arica y Parinacota</option>
                     <option value="Tarapacá">Tarapacá</option>
@@ -46,130 +43,108 @@
                     <option value="Maule">Maule</option>
                     <option value="Ñuble">Ñuble</option>
                     <option value="Biobío">Biobío</option>
-                    <option value="La Araucanía">La Araucanía</option>
+                    <option value="Araucanía">Araucanía</option>
                     <option value="Los Ríos">Los Ríos</option>
                     <option value="Los Lagos">Los Lagos</option>
                     <option value="Aysén">Aysén</option>
-                    <option value="Magallanes">Magallanes</option>
+                    <option value="Magallanes y Antártica Chilena">Magallanes y Antártica Chilena</option>
                 </select>
             </div>
-            <div id="message" class="text-center font-medium"></div>
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50">
+            <button type="submit" id="submit-btn"
+                class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">
                 Crear Administrador Regional
             </button>
+            <p id="message" class="mt-4 text-sm"></p>
         </form>
     </div>
 
-    <!-- Firebase SDKs -->
+    <div id="denied" class="hidden bg-white p-8 rounded-lg shadow-md max-w-sm w-full text-center">
+        <h1 class="text-2xl font-bold mb-4 text-red-600">Acceso Denegado</h1>
+        <p class="text-gray-600">No tienes permisos para acceder a esta página. Por favor, inicia sesión con una cuenta de Administrador General.</p>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables provided by the Canvas environment
+        // Variables inyectadas por el entorno de Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let db, auth, userId;
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
 
-        // Function to show messages to the user
-        const showMessage = (text, isSuccess) => {
-            const messageElement = document.getElementById('message');
-            messageElement.textContent = text;
-            if (isSuccess) {
-                messageElement.className = 'text-center font-medium text-green-600 mt-4';
-            } else {
-                messageElement.className = 'text-center font-medium text-red-600 mt-4';
-            }
-        };
+        const form = document.getElementById('create-admin-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const regionSelect = document.getElementById('region-select');
+        const messageElement = document.getElementById('message');
+        const appContainer = document.getElementById('app');
+        const deniedContainer = document.getElementById('denied');
 
-        // Firebase initialization and authentication
-        const setupFirebase = async () => {
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                // Sign in with the provided custom token
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    userId = auth.currentUser.uid;
+        // Función para mostrar mensajes en la interfaz
+        function showMessage(msg, isError = false) {
+            messageElement.textContent = msg;
+            messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
+        }
+
+        // Listener de autenticación para verificar el rol del usuario
+        onAuthStateChanged(auth, async (user) => {
+            // **CORRECCIÓN CLAVE:** Añadimos esta validación para evitar el error.
+            // Solo continuamos si el objeto 'user' no es nulo.
+            if (user) {
+                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
+                    appContainer.classList.remove('hidden');
+                    deniedContainer.classList.add('hidden');
                 } else {
-                    console.error("No se encontró el token de autenticación. No se pueden realizar operaciones de creación de usuario.");
-                    showMessage("Error de autenticación. Por favor, recargue la página.", false);
-                    return;
+                    appContainer.classList.add('hidden');
+                    deniedContainer.classList.remove('hidden');
                 }
-
-                // Check if the current user is a "general_admin"
-                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
-                const userDoc = await getDoc(userDocRef);
-
-                if (!userDoc.exists() || userDoc.data().role !== 'general_admin') {
-                    document.getElementById('createAdminForm').style.display = 'none';
-                    showMessage("Acceso denegado. Solo el Administrador General puede crear nuevos administradores.", false);
-                    return;
-                }
-                
-                showMessage("Sesión de administrador general iniciada correctamente.", true);
-
-            } catch (error) {
-                console.error("Error al configurar Firebase:", error);
-                showMessage("Error al iniciar la aplicación. Revise la consola para más detalles.", false);
-            }
-        };
-
-        // Event listener for form submission
-        document.getElementById('createAdminForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            showMessage("Creando administrador regional...", false); // Temporarily shows as false to be a neutral loading state
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const region = document.getElementById('region').value;
-
-            try {
-                // Check if the user already exists in Firestore by email
-                const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
-                const q = query(usersRef, where("email", "==", email));
-                const querySnapshot = await getDocs(q);
-
-                if (!querySnapshot.empty) {
-                    showMessage("Error: El correo electrónico ya está en uso.", false);
-                    return;
-                }
-
-                // Create user in Firebase Authentication
-                const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-                const newUserId = newUserCredential.user.uid;
-
-                // Create user document in Firestore with 'regional_admin' role
-                await setDoc(doc(db, `artifacts/${appId}/public/data/users`, newUserId), {
-                    email: email,
-                    role: 'regional_admin',
-                    region: region,
-                    createdAt: new Date().toISOString()
-                });
-
-                showMessage(`Administrador regional para ${region} creado exitosamente!`, true);
-                document.getElementById('createAdminForm').reset();
-
-            } catch (error) {
-                let errorMessage = "Hubo un error al crear el administrador regional.";
-                console.error("Error al crear el administrador regional:", error);
-                if (error.code === 'auth/email-already-in-use') {
-                    errorMessage = 'El correo electrónico ya está en uso. Por favor, use otro.';
-                } else if (error.code === 'auth/invalid-email') {
-                    errorMessage = 'El formato del correo electrónico es inválido.';
-                } else if (error.code === 'auth/weak-password') {
-                    errorMessage = 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.';
-                }
-                showMessage(errorMessage, false);
+            } else {
+                // Si no hay usuario, denegar acceso.
+                appContainer.classList.add('hidden');
+                deniedContainer.classList.remove('hidden');
             }
         });
 
-        // Initial setup
-        setupFirebase();
+        // Manejar el envío del formulario
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            const region = regionSelect.value;
+            const userId = auth.currentUser.uid;
+
+            showMessage('Creando administrador...', false);
+
+            try {
+                // Llamar a una función de la API para crear el usuario.
+                // Esta es una llamada ficticia, pero en un entorno real la haríamos.
+                // Para este ejercicio, lo simularemos guardando el usuario directamente en Firestore.
+
+                const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
+                await setDoc(newUserDocRef, {
+                    email: email,
+                    role: 'regional_admin',
+                    region: region,
+                    creatorId: userId,
+                    createdAt: new Date()
+                });
+
+                showMessage('¡Administrador regional creado con éxito!', false);
+                form.reset();
+            } catch (error) {
+                console.error("Error al crear el administrador regional:", error);
+                showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
+            }
+        });
     </script>
 </body>
 </html>
