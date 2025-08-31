@@ -10,6 +10,10 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+
+admin.initializeApp();
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -27,6 +31,22 @@ setGlobalOptions({ maxInstances: 10 });
 // https://firebase.google.com/docs/functions/get-started
 
 // exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
+//  logger.info("Hello logs!", {structuredData: true});
+//  response.send("Hello from Firebase!");
 // });
+
+exports.setAdminClaim = functions.https.onCall(async (data, context) => {
+  // Solo permitir si el llamador ya es admin
+  if (!context.auth?.token?.admin) {
+    throw new functions.https.HttpsError('permission-denied', 'Solo admin puede asignar admin.');
+  }
+  const { uid } = data;
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'Falta uid.');
+
+  await admin.auth().setCustomUserClaims(uid, { admin: true });
+  // Opcional: reflejar rol en Firestore (lo hace el servidor, no el cliente)
+  await admin.firestore()
+    .doc(`artifacts/default-app-id/users/${uid}`)
+    .set({ role: 'admin', createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true };
+});
