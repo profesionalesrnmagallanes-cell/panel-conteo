@@ -78,6 +78,20 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
+        // **PASO CLAVE: Autenticar al usuario al cargar la página.**
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error al autenticar:", error);
+                // Si la autenticación falla, el listener de abajo manejará el caso sin usuario.
+            }
+        }
+        
         const form = document.getElementById('create-admin-form');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
@@ -94,8 +108,7 @@
 
         // Listener de autenticación para verificar el rol del usuario
         onAuthStateChanged(auth, async (user) => {
-            // **CORRECCIÓN CLAVE:** Añadimos esta validación para evitar el error.
-            // Solo continuamos si el objeto 'user' no es nulo.
+            // Ahora este listener se activará después de que intentemos iniciar sesión.
             if (user) {
                 const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
                 const userDocSnap = await getDoc(userDocRef);
@@ -120,15 +133,18 @@
             const email = emailInput.value;
             const password = passwordInput.value;
             const region = regionSelect.value;
+            
+            // Verificamos si el usuario actual es nulo antes de continuar
+            if (!auth.currentUser) {
+                showMessage('Error: El usuario no está autenticado.', true);
+                return;
+            }
+
             const userId = auth.currentUser.uid;
 
             showMessage('Creando administrador...', false);
 
             try {
-                // Llamar a una función de la API para crear el usuario.
-                // Esta es una llamada ficticia, pero en un entorno real la haríamos.
-                // Para este ejercicio, lo simularemos guardando el usuario directamente en Firestore.
-
                 const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                 await setDoc(newUserDocRef, {
                     email: email,
@@ -145,6 +161,9 @@
                 showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
             }
         });
+        
+        // Llamada a la función de autenticación para iniciar el proceso
+        authenticateUser();
     </script>
 </body>
 </html>
