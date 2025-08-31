@@ -17,7 +17,8 @@
     </style>
 </head>
 <body>
-    <div id="login-form" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+    <!-- Contenedor del formulario de inicio de sesión -->
+    <div id="login-form" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center hidden">
         <h1 class="text-3xl font-bold mb-6 text-gray-800">Iniciar Sesión</h1>
         <form class="space-y-4" id="admin-login-form">
             <div>
@@ -35,6 +36,7 @@
         </form>
     </div>
 
+    <!-- Contenedor de la aplicación principal -->
     <div id="app" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center hidden">
         <h1 class="text-3xl font-bold mb-6 text-gray-800">Crear Administrador Regional</h1>
         <form id="create-admin-form" class="space-y-4">
@@ -76,6 +78,7 @@
         </form>
     </div>
 
+    <!-- Contenedor de acceso denegado -->
     <div id="denied" class="hidden bg-white p-8 rounded-lg shadow-md max-w-sm w-full text-center">
         <h1 class="text-2xl font-bold mb-4 text-red-600">Acceso Denegado</h1>
         <p class="text-gray-600">No tienes permisos para acceder a esta página. Por favor, inicia sesión con una cuenta de Administrador General.</p>
@@ -86,133 +89,145 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variables inyectadas por el entorno de Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // Aseguramos que el código se ejecute cuando toda la página esté cargada
+        document.addEventListener('DOMContentLoaded', () => {
 
-        // Inicializar Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        
-        console.log("Firebase inicializado con éxito.");
-        
-        const appContainer = document.getElementById('app');
-        const deniedContainer = document.getElementById('denied');
-        const loginContainer = document.getElementById('login-form');
-        const loginMessageElement = document.getElementById('login-message');
-        const messageElement = document.getElementById('message');
+            // Variables inyectadas por el entorno de Canvas
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        function showLoginError(msg) {
-            loginMessageElement.textContent = msg;
-            loginMessageElement.className = "mt-4 text-sm font-semibold text-red-600";
-        }
-        
-        const loginForm = document.getElementById('admin-login-form');
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
+            // Inicializar Firebase
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
             
-            try {
-                const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                console.log("Usuario autenticado:", userCredential.user.uid);
-            } catch (error) {
-                console.error("Error al iniciar sesión:", error.code);
-                if (error.code === 'auth/invalid-credential') {
-                    showLoginError('Credenciales inválidas. Por favor, verifica el correo y la contraseña.');
-                } else {
-                    showLoginError('Error al iniciar sesión. Por favor, inténtalo de nuevo.');
-                }
+            console.log("Firebase inicializado con éxito.");
+            
+            // Referencias a los contenedores HTML
+            const appContainer = document.getElementById('app');
+            const deniedContainer = document.getElementById('denied');
+            const loginContainer = document.getElementById('login-form');
+            const loginMessageElement = document.getElementById('login-message');
+            const messageElement = document.getElementById('message');
+
+            // Función para mostrar mensajes en el formulario de login
+            function showLoginMessage(msg, isError = false) {
+                loginMessageElement.textContent = msg;
+                loginMessageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
             }
-        });
+            
+            const loginForm = document.getElementById('admin-login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault(); // Evita que el formulario recargue la página
+                    const email = document.getElementById('login-email').value;
+                    const password = document.getElementById('login-password').value;
+                    
+                    showLoginMessage('Iniciando sesión...', false);
 
-        // Listener de autenticación para verificar el rol del usuario
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                try {
-                    const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
-                    const userDocSnap = await getDoc(userDocRef);
+                    try {
+                        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                        console.log("Usuario autenticado:", userCredential.user.uid);
+                    } catch (error) {
+                        console.error("Error al iniciar sesión:", error.code);
+                        if (error.code === 'auth/invalid-credential') {
+                            showLoginMessage('Credenciales inválidas. Por favor, verifica el correo y la contraseña.', true);
+                        } else {
+                            showLoginMessage('Error al iniciar sesión. Por favor, inténtalo de nuevo.', true);
+                        }
+                    }
+                });
+            }
 
-                    if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
-                        loginContainer.classList.add('hidden');
-                        appContainer.classList.remove('hidden');
-                        deniedContainer.classList.add('hidden');
-                    } else {
+            // Listener de autenticación para verificar el rol del usuario
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    try {
+                        const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                        const userDocSnap = await getDoc(userDocRef);
+
+                        if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
+                            loginContainer.classList.add('hidden');
+                            appContainer.classList.remove('hidden');
+                            deniedContainer.classList.add('hidden');
+                        } else {
+                            loginContainer.classList.add('hidden');
+                            appContainer.classList.add('hidden');
+                            deniedContainer.classList.remove('hidden');
+                        }
+                    } catch (error) {
+                        console.error("Error al obtener el rol del usuario:", error);
                         loginContainer.classList.add('hidden');
                         appContainer.classList.add('hidden');
                         deniedContainer.classList.remove('hidden');
                     }
-                } catch (error) {
-                    console.error("Error al obtener el rol del usuario:", error);
-                    loginContainer.classList.add('hidden');
+                } else {
+                    loginContainer.classList.remove('hidden');
                     appContainer.classList.add('hidden');
-                    deniedContainer.classList.remove('hidden');
+                    deniedContainer.classList.add('hidden');
                 }
-            } else {
-                loginContainer.classList.remove('hidden');
-                appContainer.classList.add('hidden');
-                deniedContainer.classList.add('hidden');
+            });
+
+            // Función para mostrar mensajes en la interfaz
+            function showMessage(msg, isError = false) {
+                messageElement.textContent = msg;
+                messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
             }
-        });
-
-        // Función para mostrar mensajes en la interfaz
-        function showMessage(msg, isError = false) {
-            messageElement.textContent = msg;
-            messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
-        }
-        
-        const form = document.getElementById('create-admin-form');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const regionSelect = document.getElementById('region-select');
-
-        // Manejar el envío del formulario
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            const region = regionSelect.value;
             
-            if (!auth.currentUser) {
-                showMessage('Error: El usuario no está autenticado.', true);
-                return;
-            }
+            const form = document.getElementById('create-admin-form');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const regionSelect = document.getElementById('region-select');
 
-            const userId = auth.currentUser.uid;
+            // Manejar el envío del formulario
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const email = emailInput.value;
+                    const password = passwordInput.value;
+                    const region = regionSelect.value;
+                    
+                    if (!auth.currentUser) {
+                        showMessage('Error: El usuario no está autenticado.', true);
+                        return;
+                    }
 
-            showMessage('Creando administrador...', false);
+                    const userId = auth.currentUser.uid;
 
-            try {
-                const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
-                await setDoc(newUserDocRef, {
-                    email: email,
-                    role: 'regional_admin',
-                    region: region,
-                    creatorId: userId,
-                    createdAt: new Date()
+                    showMessage('Creando administrador...', false);
+
+                    try {
+                        const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
+                        await setDoc(newUserDocRef, {
+                            email: email,
+                            role: 'regional_admin',
+                            region: region,
+                            creatorId: userId,
+                            createdAt: new Date()
+                        });
+
+                        showMessage('¡Administrador regional creado con éxito!', false);
+                        form.reset();
+                    } catch (error) {
+                        console.error("Error al crear el administrador regional:", error);
+                        showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
+                    }
                 });
-
-                showMessage('¡Administrador regional creado con éxito!', false);
-                form.reset();
-            } catch (error) {
-                console.error("Error al crear el administrador regional:", error);
-                showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
             }
-        });
-        
-        // Autenticar con el token inicial si está disponible
-        async function authenticateUserWithToken() {
-             if (initialAuthToken) {
-                 try {
-                     await signInWithCustomToken(auth, initialAuthToken);
-                 } catch(error) {
-                     console.error("Error al autenticar con el token inicial:", error);
+            
+            // Autenticar con el token inicial si está disponible
+            async function authenticateUserWithToken() {
+                 if (initialAuthToken) {
+                     try {
+                         await signInWithCustomToken(auth, initialAuthToken);
+                     } catch(error) {
+                         console.error("Error al autenticar con el token inicial:", error);
+                     }
                  }
-             }
-        }
-        authenticateUserWithToken();
+            }
+            authenticateUserWithToken();
+        });
     </script>
 </body>
 </html>
