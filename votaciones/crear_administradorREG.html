@@ -18,7 +18,7 @@
 </head>
 <body>
     <!-- Contenedor del formulario de inicio de sesión -->
-    <div id="login-form" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center hidden">
+    <div id="login-form" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
         <h1 class="text-3xl font-bold mb-6 text-gray-800">Iniciar Sesión</h1>
         <form class="space-y-4" id="admin-login-form">
             <div>
@@ -142,6 +142,7 @@
 
             // Listener de autenticación para verificar el rol del usuario
             onAuthStateChanged(auth, async (user) => {
+                console.log("Estado de autenticación cambiado:", user ? "Usuario autenticado" : "No hay usuario");
                 if (user) {
                     try {
                         const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
