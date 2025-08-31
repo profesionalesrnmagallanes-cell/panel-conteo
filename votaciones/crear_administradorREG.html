@@ -129,12 +129,16 @@
                     try {
                         const userCredential = await signInWithEmailAndPassword(auth, email, password);
                         console.log("Usuario autenticado:", userCredential.user.uid);
+                        showLoginMessage('Inicio de sesión exitoso. Redirigiendo...', false);
+                        // El onAuthStateChanged se encargará de mostrar el siguiente contenedor.
                     } catch (error) {
                         console.error("Error al iniciar sesión:", error.code);
                         if (error.code === 'auth/invalid-credential') {
                             showLoginMessage('Credenciales inválidas. Por favor, verifica el correo y la contraseña.', true);
+                        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                             showLoginMessage('Credenciales incorrectas.', true);
                         } else {
-                            showLoginMessage('Error al iniciar sesión. Por favor, inténtalo de nuevo.', true);
+                            showLoginMessage('Error desconocido. Por favor, inténtalo de nuevo más tarde.', true);
                         }
                     }
                 });
@@ -170,7 +174,7 @@
                 }
             });
 
-            // Función para mostrar mensajes en la interfaz
+            // Función para mostrar mensajes en la interfaz de creación de admin
             function showMessage(msg, isError = false) {
                 messageElement.textContent = msg;
                 messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
@@ -199,6 +203,7 @@
                     showMessage('Creando administrador...', false);
 
                     try {
+                        // Usaremos el email como ID del documento para que la referencia sea única y fácil de encontrar.
                         const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                         await setDoc(newUserDocRef, {
                             email: email,
