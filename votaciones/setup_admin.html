@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Administrador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 2.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 24rem;
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">Configuración de Administrador</h1>
+        <p id="status-message" class="text-gray-600 mb-4">Iniciando el proceso de configuración...</p>
+        <div id="loader" class="flex justify-center items-center">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const statusMessage = document.getElementById('status-message');
+            const loader = document.getElementById('loader');
+
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            if (Object.keys(firebaseConfig).length === 0) {
+                statusMessage.textContent = 'Error: Configuración de Firebase no encontrada. No se puede continuar.';
+                loader.classList.add('hidden');
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            
+            try {
+                statusMessage.textContent = 'Autenticando con las credenciales de administrador...';
+                const email = 'Cesar.alvarado.barria@gmail.com';
+                const password = 'JhonCena2025Gasolinade93a$1500';
+
+                let userCredential;
+                try {
+                    // Intenta iniciar sesión primero
+                    userCredential = await signInWithEmailAndPassword(auth, email, password);
+                } catch (loginError) {
+                    if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/wrong-password') {
+                         // Si el usuario no existe o la contraseña es incorrecta, crea el usuario y luego inicia sesión.
+                         statusMessage.textContent = 'Usuario no encontrado. Creando y asignando rol de administrador...';
+                         userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                    } else {
+                        throw loginError;
+                    }
+                }
+                
+                const user = userCredential.user;
+                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+
+                statusMessage.textContent = 'Actualizando el rol del usuario en la base de datos...';
+                await setDoc(userDocRef, {
+                    email: user.email,
+                    role: 'general_admin',
+                    createdAt: new Date(),
+                });
+
+                statusMessage.textContent = '¡Configuración completada con éxito! Ya puedes cerrar esta ventana y usar el archivo principal.';
+                statusMessage.classList.add('text-green-600');
+                loader.classList.add('hidden');
+            } catch (error) {
+                console.error("Error en la configuración:", error);
+                statusMessage.textContent = `Error: ${error.message}. Por favor, revisa la consola para más detalles.`;
+                statusMessage.classList.add('text-red-600');
+                loader.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
