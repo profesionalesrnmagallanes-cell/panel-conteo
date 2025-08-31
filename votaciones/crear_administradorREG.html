@@ -17,6 +17,24 @@
     </style>
 </head>
 <body>
+    <div id="login-form" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">Iniciar Sesión</h1>
+        <form class="space-y-4" id="admin-login-form">
+            <div>
+                <input type="email" id="login-email" placeholder="Correo de Administrador General" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <input type="password" id="login-password" placeholder="Contraseña" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">
+                Acceder como Administrador General
+            </button>
+            <p id="login-message" class="mt-4 text-sm"></p>
+        </form>
+    </div>
+
     <div id="app" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center hidden">
         <h1 class="text-3xl font-bold mb-6 text-gray-800">Crear Administrador Regional</h1>
         <form id="create-admin-form" class="space-y-4">
@@ -65,20 +83,87 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables inyectadas por el entorno de Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Inicializar Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        let app, db, auth;
+        const appContainer = document.getElementById('app');
+        const deniedContainer = document.getElementById('denied');
+        const loginContainer = document.getElementById('login-form');
+        const loginMessageElement = document.getElementById('login-message');
+
+        // Inicializar Firebase si la configuración existe
+        if (firebaseConfig) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            console.log("Firebase inicializado con la configuración del entorno.");
+        } else {
+            console.error("No se encontró la configuración de Firebase.");
+            showLoginError("Error: La configuración de Firebase no está disponible. Para usar esta funcionalidad, necesitas ejecutar la aplicación en un entorno de Firebase Hosting.");
+        }
+
+        function showLoginError(msg) {
+            loginMessageElement.textContent = msg;
+            loginMessageElement.className = "mt-4 text-sm font-semibold text-red-600";
+        }
+        
+        const loginForm = document.getElementById('admin-login-form');
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!auth) {
+                showLoginError("Error de conexión. Firebase no está inicializado.");
+                return;
+            }
+
+            try {
+                // Iniciar sesión con email y contraseña
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                console.log("Usuario autenticado:", user.uid);
+                // La validación del rol se hará en el onAuthStateChanged
+            } catch (error) {
+                console.error("Error al iniciar sesión:", error.code);
+                if (error.code === 'auth/invalid-credential') {
+                    showLoginError('Credenciales inválidas. Por favor, verifica el correo y la contraseña.');
+                } else {
+                    showLoginError('Error al iniciar sesión. Por favor, inténtalo de nuevo.');
+                }
+            }
+        });
+
+        // Listener de autenticación para verificar el rol del usuario
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
+                    loginContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    deniedContainer.classList.add('hidden');
+                } else {
+                    loginContainer.classList.add('hidden');
+                    appContainer.classList.add('hidden');
+                    deniedContainer.classList.remove('hidden');
+                }
+            } else {
+                loginContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                deniedContainer.classList.add('hidden');
+            }
+        });
 
         // Función para mostrar mensajes en la interfaz
+        const messageElement = document.getElementById('message');
         function showMessage(msg, isError = false) {
             messageElement.textContent = msg;
             messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
@@ -88,28 +173,6 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const regionSelect = document.getElementById('region-select');
-        const messageElement = document.getElementById('message');
-        const appContainer = document.getElementById('app');
-        const deniedContainer = document.getElementById('denied');
-
-        // Listener de autenticación para verificar el rol del usuario
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-
-                if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
-                    appContainer.classList.remove('hidden');
-                    deniedContainer.classList.add('hidden');
-                } else {
-                    appContainer.classList.add('hidden');
-                    deniedContainer.classList.remove('hidden');
-                }
-            } else {
-                appContainer.classList.add('hidden');
-                deniedContainer.classList.remove('hidden');
-            }
-        });
 
         // Manejar el envío del formulario
         form.addEventListener('submit', async (e) => {
@@ -144,50 +207,6 @@
                 showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
             }
         });
-
-        // Autenticar al usuario al cargar la página
-        async function authenticateUser() {
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Error al autenticar:", error);
-            }
-        }
-        authenticateUser();
     </script>
 </body>
 </html>
-```
-eof
-
----
-
-### Pasos para desplegar en Firebase Hosting
-
-1.  **Abre la terminal o línea de comandos.**
-2.  **Asegúrate de tener instalado Firebase CLI.** Si no lo tienes, usa este comando:
-    ```bash
-    npm install -g firebase-tools
-    ```
-3.  **Inicia sesión en tu cuenta de Firebase.** En la terminal, ejecuta:
-    ```bash
-    firebase login
-    ```
-    Sigue las instrucciones en el navegador para autenticar tu cuenta.
-4.  **Inicializa tu proyecto de Firebase.** Ve a la carpeta raíz de tu proyecto (donde está tu archivo `votaciones`) y ejecuta:
-    ```bash
-    firebase init
-    ```
-    * Te preguntará qué servicios quieres usar. **Selecciona "Hosting"** usando la barra espaciadora y luego presiona Enter.
-    * Te preguntará si quieres usar un proyecto existente o crear uno nuevo. **Selecciona "Use an existing project"** y escoge el proyecto de tu aplicación.
-    * Te preguntará qué directorio público quieres usar. **Escribe `votaciones`** y presiona Enter.
-    * Te preguntará si quieres configurar como una aplicación de una sola página. **Escribe `n` (no)** y presiona Enter.
-    * Te preguntará si quieres configurar compilaciones automáticas y despliegues. **Escribe `n` (no)** y presiona Enter.
-5.  **Despliega tu aplicación.** Una vez que la inicialización termine, ejecuta el comando de despliegue:
-    ```bash
-    firebase deploy --only hosting
-    
