@@ -70,33 +70,18 @@
 
         // Variables inyectadas por el entorno de Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app, db, auth;
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
 
-        // **PASO CLAVE: Inicializar Firebase solo si hay una configuración válida**
-        if (firebaseConfig) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            console.log("Firebase inicializado con la configuración del entorno.");
-        } else {
-            console.warn("No se encontró la configuración de Firebase. Se simulará la autenticación para la prueba local.");
-            // Esto es para que puedas probar la interfaz localmente sin errores
-            const mockUser = { uid: 'mock-admin-uid', email: 'mock-admin@example.com' };
-            const mockUserRole = 'general_admin';
-            
-            // Simular el comportamiento de onAuthStateChanged
-            setTimeout(() => {
-                if (mockUserRole === 'general_admin') {
-                    appContainer.classList.remove('hidden');
-                    deniedContainer.classList.add('hidden');
-                } else {
-                    appContainer.classList.add('hidden');
-                    deniedContainer.classList.remove('hidden');
-                }
-            }, 100);
+        // Función para mostrar mensajes en la interfaz
+        function showMessage(msg, isError = false) {
+            messageElement.textContent = msg;
+            messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
         }
         
         const form = document.getElementById('create-admin-form');
@@ -107,25 +92,37 @@
         const appContainer = document.getElementById('app');
         const deniedContainer = document.getElementById('denied');
 
-        // Función para mostrar mensajes en la interfaz
-        function showMessage(msg, isError = false) {
-            messageElement.textContent = msg;
-            messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
-        }
+        // Listener de autenticación para verificar el rol del usuario
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
+                    appContainer.classList.remove('hidden');
+                    deniedContainer.classList.add('hidden');
+                } else {
+                    appContainer.classList.add('hidden');
+                    deniedContainer.classList.remove('hidden');
+                }
+            } else {
+                appContainer.classList.add('hidden');
+                deniedContainer.classList.remove('hidden');
+            }
+        });
 
         // Manejar el envío del formulario
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            // Si Firebase no está inicializado, mostrar un mensaje de error claro
-            if (!auth) {
-                showMessage("Error: El formulario no está conectado a Firebase. Para usarlo, necesitas una configuración de Firebase real.", true);
-                return;
-            }
-
             const email = emailInput.value;
             const password = passwordInput.value;
             const region = regionSelect.value;
+            
+            if (!auth.currentUser) {
+                showMessage('Error: El usuario no está autenticado.', true);
+                return;
+            }
+
             const userId = auth.currentUser.uid;
 
             showMessage('Creando administrador...', false);
@@ -148,12 +145,49 @@
             }
         });
 
-        // Autenticar al usuario
-        if (initialAuthToken) {
-            signInWithCustomToken(auth, initialAuthToken).catch(err => console.error("Error al iniciar sesión con token personalizado:", err));
-        } else {
-            signInAnonymously(auth).catch(err => console.error("Error al iniciar sesión anónimamente:", err));
+        // Autenticar al usuario al cargar la página
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error al autenticar:", error);
+            }
         }
+        authenticateUser();
     </script>
 </body>
 </html>
+```
+eof
+
+---
+
+### Pasos para desplegar en Firebase Hosting
+
+1.  **Abre la terminal o línea de comandos.**
+2.  **Asegúrate de tener instalado Firebase CLI.** Si no lo tienes, usa este comando:
+    ```bash
+    npm install -g firebase-tools
+    ```
+3.  **Inicia sesión en tu cuenta de Firebase.** En la terminal, ejecuta:
+    ```bash
+    firebase login
+    ```
+    Sigue las instrucciones en el navegador para autenticar tu cuenta.
+4.  **Inicializa tu proyecto de Firebase.** Ve a la carpeta raíz de tu proyecto (donde está tu archivo `votaciones`) y ejecuta:
+    ```bash
+    firebase init
+    ```
+    * Te preguntará qué servicios quieres usar. **Selecciona "Hosting"** usando la barra espaciadora y luego presiona Enter.
+    * Te preguntará si quieres usar un proyecto existente o crear uno nuevo. **Selecciona "Use an existing project"** y escoge el proyecto de tu aplicación.
+    * Te preguntará qué directorio público quieres usar. **Escribe `votaciones`** y presiona Enter.
+    * Te preguntará si quieres configurar como una aplicación de una sola página. **Escribe `n` (no)** y presiona Enter.
+    * Te preguntará si quieres configurar compilaciones automáticas y despliegues. **Escribe `n` (no)** y presiona Enter.
+5.  **Despliega tu aplicación.** Una vez que la inicialización termine, ejecuta el comando de despliegue:
+    ```bash
+    firebase deploy --only hosting
+    
