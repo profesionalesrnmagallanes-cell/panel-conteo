@@ -39,19 +39,27 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         document.addEventListener('DOMContentLoaded', async () => {
             const statusMessage = document.getElementById('status-message');
             const loader = document.getElementById('loader');
 
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            const firebaseConfig = {
+                apiKey: "AIzaSyCMzhSn3k1J_5yAR9vIh_thaKPre7n8DUw",
+                authDomain: "conteo-en-vivo.firebaseapp.com",
+                projectId: "conteo-en-vivo",
+                storageBucket: "conteo-en-vivo.firebasestorage.app",
+                messagingSenderId: "904608064786",
+                appId: "1:904608064786:web:134286ae96c14187087fcb",
+                measurementId: "G-6ENPEC81RD"
+            };
 
-            if (Object.keys(firebaseConfig).length === 0) {
-                statusMessage.textContent = 'Error: Configuración de Firebase no encontrada. No se puede continuar.';
+            const appId = firebaseConfig.projectId;
+
+            if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                statusMessage.textContent = 'Error: Configuración de Firebase no encontrada. Por favor, ingresa tus datos en el código.';
                 loader.classList.add('hidden');
                 return;
             }
@@ -70,10 +78,9 @@
                     // Intenta iniciar sesión primero
                     userCredential = await signInWithEmailAndPassword(auth, email, password);
                 } catch (loginError) {
-                    if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/wrong-password') {
-                         // Si el usuario no existe o la contraseña es incorrecta, crea el usuario y luego inicia sesión.
+                    if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/wrong-password' || loginError.code === 'auth/invalid-credential') {
                          statusMessage.textContent = 'Usuario no encontrado. Creando y asignando rol de administrador...';
-                         userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                         userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     } else {
                         throw loginError;
                     }
