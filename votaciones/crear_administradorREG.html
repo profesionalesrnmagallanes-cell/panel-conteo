@@ -118,7 +118,6 @@
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 console.log("Usuario autenticado:", userCredential.user.uid);
-                // La validación del rol se hará en el onAuthStateChanged
             } catch (error) {
                 console.error("Error al iniciar sesión:", error.code);
                 if (error.code === 'auth/invalid-credential') {
@@ -186,8 +185,6 @@
             showMessage('Creando administrador...', false);
 
             try {
-                // Para simplificar, la autenticación de nuevos usuarios se hará directamente con la base de datos de Firebase.
-                // En un entorno de producción, esto debería hacerse con una Cloud Function para mayor seguridad.
                 const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                 await setDoc(newUserDocRef, {
                     email: email,
@@ -212,7 +209,6 @@
                      await signInWithCustomToken(auth, initialAuthToken);
                  } catch(error) {
                      console.error("Error al autenticar con el token inicial:", error);
-                     // Si falla, el onAuthStateChanged se activará con un usuario nulo, mostrando el formulario de inicio de sesión.
                  }
              }
         }
