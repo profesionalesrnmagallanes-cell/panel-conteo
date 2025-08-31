@@ -86,10 +86,13 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithCustomToken, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-check.js";
 
-        // Aseguramos que el código se ejecute cuando toda la página esté cargada
+        // (Opcional) Activa depuración SOLO para localhost:
+        // window.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+
         document.addEventListener('DOMContentLoaded', () => {
 
             // Variables inyectadas por el entorno de Canvas
@@ -99,11 +102,18 @@
 
             // Inicializar Firebase
             const app = initializeApp(firebaseConfig);
+
+            // ✅ Inicializar App Check con reCAPTCHA v3 (tu Site Key real)
+            initializeAppCheck(app, {
+                provider: new ReCaptchaV3Provider("6LetgrkrAAAAAB_dLAvEcOIQ9MY0lH_ivvIgybMm"),
+                isTokenAutoRefreshEnabled: true,
+            });
+
             const db = getFirestore(app);
             const auth = getAuth(app);
-            
-            console.log("Firebase inicializado con éxito.");
-            
+
+            console.log("Firebase + App Check inicializados.");
+
             // Referencias a los contenedores HTML
             const appContainer = document.getElementById('app');
             const deniedContainer = document.getElementById('denied');
@@ -116,27 +126,26 @@
                 loginMessageElement.textContent = msg;
                 loginMessageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
             }
-            
+
             const loginForm = document.getElementById('admin-login-form');
             if (loginForm) {
                 loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault(); // Evita que el formulario recargue la página
+                    e.preventDefault(); // Evita recarga
                     const email = document.getElementById('login-email').value;
                     const password = document.getElementById('login-password').value;
-                    
+
                     showLoginMessage('Iniciando sesión...', false);
 
                     try {
                         const userCredential = await signInWithEmailAndPassword(auth, email, password);
                         console.log("Usuario autenticado:", userCredential.user.uid);
                         showLoginMessage('Inicio de sesión exitoso. Redirigiendo...', false);
-                        // El onAuthStateChanged se encargará de mostrar el siguiente contenedor.
                     } catch (error) {
                         console.error("Error al iniciar sesión:", error.code);
                         if (error.code === 'auth/invalid-credential') {
                             showLoginMessage('Credenciales inválidas. Por favor, verifica el correo y la contraseña.', true);
                         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-                             showLoginMessage('Credenciales incorrectas.', true);
+                            showLoginMessage('Credenciales incorrectas.', true);
                         } else {
                             showLoginMessage('Error desconocido. Por favor, inténtalo de nuevo más tarde.', true);
                         }
@@ -179,7 +188,7 @@
                 messageElement.textContent = msg;
                 messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
             }
-            
+
             const form = document.getElementById('create-admin-form');
             const emailInput = document.getElementById('email');
             const passwordInput = document.getElementById('password');
@@ -192,7 +201,7 @@
                     const email = emailInput.value;
                     const password = passwordInput.value;
                     const region = regionSelect.value;
-                    
+
                     if (!auth.currentUser) {
                         showMessage('Error: El usuario no está autenticado.', true);
                         return;
@@ -203,7 +212,7 @@
                     showMessage('Creando administrador...', false);
 
                     try {
-                        // Usaremos el email como ID del documento para que la referencia sea única y fácil de encontrar.
+                        // Usamos el email como ID de documento
                         const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                         await setDoc(newUserDocRef, {
                             email: email,
@@ -221,16 +230,16 @@
                     }
                 });
             }
-            
+
             // Autenticar con el token inicial si está disponible
             async function authenticateUserWithToken() {
-                 if (initialAuthToken) {
-                     try {
-                         await signInWithCustomToken(auth, initialAuthToken);
-                     } catch(error) {
-                         console.error("Error al autenticar con el token inicial:", error);
-                     }
-                 }
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch(error) {
+                        console.error("Error al autenticar con el token inicial:", error);
+                    }
+                }
             }
             authenticateUserWithToken();
         });
