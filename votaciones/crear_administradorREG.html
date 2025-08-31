@@ -83,30 +83,26 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variables inyectadas por el entorno de Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app, db, auth;
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        console.log("Firebase inicializado con éxito.");
+        
         const appContainer = document.getElementById('app');
         const deniedContainer = document.getElementById('denied');
         const loginContainer = document.getElementById('login-form');
         const loginMessageElement = document.getElementById('login-message');
-
-        // Inicializar Firebase si la configuración existe
-        if (firebaseConfig) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            console.log("Firebase inicializado con la configuración del entorno.");
-        } else {
-            console.error("No se encontró la configuración de Firebase.");
-            showLoginError("Error: La configuración de Firebase no está disponible. Para usar esta funcionalidad, necesitas ejecutar la aplicación en un entorno de Firebase Hosting.");
-        }
+        const messageElement = document.getElementById('message');
 
         function showLoginError(msg) {
             loginMessageElement.textContent = msg;
@@ -119,16 +115,9 @@
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
             
-            if (!auth) {
-                showLoginError("Error de conexión. Firebase no está inicializado.");
-                return;
-            }
-
             try {
-                // Iniciar sesión con email y contraseña
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                const user = userCredential.user;
-                console.log("Usuario autenticado:", user.uid);
+                console.log("Usuario autenticado:", userCredential.user.uid);
                 // La validación del rol se hará en el onAuthStateChanged
             } catch (error) {
                 console.error("Error al iniciar sesión:", error.code);
@@ -143,14 +132,21 @@
         // Listener de autenticación para verificar el rol del usuario
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
+                try {
+                    const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                    const userDocSnap = await getDoc(userDocRef);
 
-                if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
-                    loginContainer.classList.add('hidden');
-                    appContainer.classList.remove('hidden');
-                    deniedContainer.classList.add('hidden');
-                } else {
+                    if (userDocSnap.exists() && userDocSnap.data().role === 'general_admin') {
+                        loginContainer.classList.add('hidden');
+                        appContainer.classList.remove('hidden');
+                        deniedContainer.classList.add('hidden');
+                    } else {
+                        loginContainer.classList.add('hidden');
+                        appContainer.classList.add('hidden');
+                        deniedContainer.classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error("Error al obtener el rol del usuario:", error);
                     loginContainer.classList.add('hidden');
                     appContainer.classList.add('hidden');
                     deniedContainer.classList.remove('hidden');
@@ -163,7 +159,6 @@
         });
 
         // Función para mostrar mensajes en la interfaz
-        const messageElement = document.getElementById('message');
         function showMessage(msg, isError = false) {
             messageElement.textContent = msg;
             messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
@@ -191,6 +186,8 @@
             showMessage('Creando administrador...', false);
 
             try {
+                // Para simplificar, la autenticación de nuevos usuarios se hará directamente con la base de datos de Firebase.
+                // En un entorno de producción, esto debería hacerse con una Cloud Function para mayor seguridad.
                 const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                 await setDoc(newUserDocRef, {
                     email: email,
@@ -207,6 +204,19 @@
                 showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
             }
         });
+        
+        // Autenticar con el token inicial si está disponible
+        async function authenticateUserWithToken() {
+             if (initialAuthToken) {
+                 try {
+                     await signInWithCustomToken(auth, initialAuthToken);
+                 } catch(error) {
+                     console.error("Error al autenticar con el token inicial:", error);
+                     // Si falla, el onAuthStateChanged se activará con un usuario nulo, mostrando el formulario de inicio de sesión.
+                 }
+             }
+        }
+        authenticateUserWithToken();
     </script>
 </body>
 </html>
