@@ -6,112 +6,100 @@
     <title>Configuración de Administrador</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            background-color: #ffffff;
-            padding: 2.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 24rem;
-            width: 100%;
-            text-align: center;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">Configuración de Administrador</h1>
-        <p id="status-message" class="text-gray-600 mb-4">Iniciando el proceso de configuración...</p>
-        <div id="loader" class="flex justify-center items-center">
-            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-        </div>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Configuración de Administrador</h1>
+        <p id="message" class="mb-4 text-gray-600">Conectando...</p>
+        <div id="loader" class="mx-auto w-12 h-12 border-4 border-t-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const statusMessage = document.getElementById('status-message');
-            const loader = document.getElementById('loader');
+        // Variables globales del entorno de Canvas
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-            const firebaseConfig = {
-                apiKey: "AIzaSyCMzhSn3k1J_5yAR9vIh_thaKPre7n8DUw",
-                authDomain: "conteo-en-vivo.firebaseapp.com",
-                projectId: "conteo-en-vivo",
-                storageBucket: "conteo-en-vivo.firebasestorage.app",
-                messagingSenderId: "904608064786",
-                appId: "1:904608064786:web:134286ae96c14187087fcb",
-                measurementId: "G-6ENPEC81RD"
-            };
+        const messageEl = document.getElementById('message');
+        const loaderEl = document.getElementById('loader');
 
-            const appId = firebaseConfig.projectId;
+        const displayMessage = (msg, isError = false) => {
+            messageEl.textContent = msg;
+            messageEl.className = `mb-4 ${isError ? 'text-red-500' : 'text-gray-600'}`;
+            loaderEl.style.display = 'none';
+        };
 
-            const app = initializeApp(firebaseConfig);
-            const db = getFirestore(app);
-            const auth = getAuth(app);
-            
+        const setupAdmin = async (userId) => {
             try {
-                statusMessage.textContent = 'Intentando autenticar...';
-                const email = 'Cesar.alvarado.barria@gmail.com';
-                const password = 'Tangamandapi0#'; // Nueva contraseña
-                
-                let userCredential;
-                try {
-                    // Intenta iniciar sesión primero para ver si el usuario ya existe.
-                    userCredential = await signInWithEmailAndPassword(auth, email, password);
-                    statusMessage.textContent = 'Usuario autenticado. Asignando rol de administrador...';
-                } catch (signInError) {
-                    if (signInError.code === 'auth/user-not-found') {
-                         // Si el usuario no existe, lo creamos y luego iniciamos sesión.
-                         statusMessage.textContent = 'Usuario no encontrado. Creando y asignando rol de administrador...';
-                         userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                    } else if (signInError.code === 'auth/wrong-password' || signInError.code === 'auth/invalid-credential') {
-                        // Si la contraseña es incorrecta, significa que el usuario ya existe.
-                        // El script asume que la cuenta ya fue creada en un paso anterior.
-                        // Se muestra un mensaje y se detiene el proceso de configuración.
-                        // Ahora puedes continuar con el inicio de sesión manual.
-                        statusMessage.textContent = 'Error: Credenciales inválidas. El usuario ya existe pero la contraseña no coincide. Por favor, continúa con el inicio de sesión manual en la app principal.';
-                        loader.classList.add('hidden');
-                        return;
-                    }
-                    else {
-                        // Para cualquier otro error, detenemos el proceso.
-                        throw signInError;
-                    }
+                if (!firebaseConfig) {
+                    throw new Error("Configuración de Firebase no encontrada.");
                 }
+
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+
+                const adminDocRef = doc(db, `artifacts/${appId}/users`, userId);
                 
-                const user = userCredential.user;
-                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                // Intenta establecer el documento del usuario como administrador
+                await setDoc(adminDocRef, {
+                    role: "admin",
+                    createdAt: new Date()
+                }, { merge: true });
 
-                statusMessage.textContent = 'Actualizando el rol del usuario en la base de datos...';
-                await setDoc(userDocRef, {
-                    email: user.email,
-                    role: 'general_admin',
-                    createdAt: new Date(),
-                }, { merge: true }); // Usamos { merge: true } para no sobrescribir datos si el documento ya existe.
-
-                statusMessage.textContent = '¡Configuración completada con éxito! Ya puedes cerrar esta ventana y usar el archivo principal.';
-                statusMessage.classList.add('text-green-600');
-                loader.classList.add('hidden');
-            } catch (error) {
-                console.error("Error en la configuración:", error);
-                statusMessage.textContent = `Error: ${error.message}. Por favor, revisa la consola para más detalles.`;
-                statusMessage.classList.add('text-red-600');
-                loader.classList.add('hidden');
+                displayMessage("Configuración de Administrador exitosa.");
+                console.log("Documento de administrador creado con éxito en Firestore.");
+            } catch (e) {
+                console.error("Error al configurar el administrador:", e);
+                displayMessage(`Error: ${e.message}`, true);
             }
-        });
+        };
+
+        const init = async () => {
+            try {
+                if (!firebaseConfig) {
+                    throw new Error("Configuración de Firebase no encontrada.");
+                }
+
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+
+                // Espera a que el estado de autenticación cambie.
+                // onAuthStateChanged se dispara al iniciar sesión.
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        // El usuario está autenticado, ahora podemos escribir
+                        // Este es el paso crucial que faltaba.
+                        await setupAdmin(user.uid);
+                        unsubscribe(); // Detiene el listener después de la operación
+                    } else {
+                        // No hay usuario, intenta iniciar sesión.
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (e) {
+                            console.error("Error de autenticación:", e);
+                            displayMessage(`Error de autenticación: ${e.message}`, true);
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error("Error al inicializar la aplicación:", e);
+                displayMessage(`Error de inicialización: ${e.message}`, true);
+            }
+        };
+
+        init();
     </script>
 </body>
 </html>
