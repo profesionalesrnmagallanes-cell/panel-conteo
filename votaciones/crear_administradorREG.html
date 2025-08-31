@@ -94,8 +94,7 @@
         // window.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 
         document.addEventListener('DOMContentLoaded', () => {
-
-            // Variables inyectadas por el entorno de Canvas
+            // Variables inyectadas por tu entorno
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
             const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -103,9 +102,9 @@
             // Inicializar Firebase
             const app = initializeApp(firebaseConfig);
 
-            // ✅ Inicializar App Check con reCAPTCHA v3 (tu Site Key real)
+            // ✅ App Check con tu Site Key actualizada
             initializeAppCheck(app, {
-                provider: new ReCaptchaV3Provider("6LetgrkrAAAAAB_dLAvEcOIQ9MY0lH_ivvIgybMm"),
+                provider: new ReCaptchaV3Provider("6LeGh7krAAAAAGZzUWbOWMCEs5vpCDR9dVpK32YL"),
                 isTokenAutoRefreshEnabled: true,
             });
 
@@ -114,14 +113,13 @@
 
             console.log("Firebase + App Check inicializados.");
 
-            // Referencias a los contenedores HTML
+            // Referencias a contenedores
             const appContainer = document.getElementById('app');
             const deniedContainer = document.getElementById('denied');
             const loginContainer = document.getElementById('login-form');
             const loginMessageElement = document.getElementById('login-message');
             const messageElement = document.getElementById('message');
 
-            // Función para mostrar mensajes en el formulario de login
             function showLoginMessage(msg, isError = false) {
                 loginMessageElement.textContent = msg;
                 loginMessageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
@@ -130,7 +128,7 @@
             const loginForm = document.getElementById('admin-login-form');
             if (loginForm) {
                 loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault(); // Evita recarga
+                    e.preventDefault();
                     const email = document.getElementById('login-email').value;
                     const password = document.getElementById('login-password').value;
 
@@ -143,19 +141,19 @@
                     } catch (error) {
                         console.error("Error al iniciar sesión:", error.code);
                         if (error.code === 'auth/invalid-credential') {
-                            showLoginMessage('Credenciales inválidas. Por favor, verifica el correo y la contraseña.', true);
+                            showLoginMessage('Credenciales inválidas. Verifica correo y contraseña.', true);
                         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
                             showLoginMessage('Credenciales incorrectas.', true);
                         } else {
-                            showLoginMessage('Error desconocido. Por favor, inténtalo de nuevo más tarde.', true);
+                            showLoginMessage('Error desconocido. Intenta más tarde.', true);
                         }
                     }
                 });
             }
 
-            // Listener de autenticación para verificar el rol del usuario
+            // Listener de autenticación para verificar rol
             onAuthStateChanged(auth, async (user) => {
-                console.log("Estado de autenticación cambiado:", user ? "Usuario autenticado" : "No hay usuario");
+                console.log("Auth:", user ? "Autenticado" : "No autenticado");
                 if (user) {
                     try {
                         const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid);
@@ -171,7 +169,7 @@
                             deniedContainer.classList.remove('hidden');
                         }
                     } catch (error) {
-                        console.error("Error al obtener el rol del usuario:", error);
+                        console.error("Error al obtener rol:", error);
                         loginContainer.classList.add('hidden');
                         appContainer.classList.add('hidden');
                         deniedContainer.classList.remove('hidden');
@@ -183,7 +181,6 @@
                 }
             });
 
-            // Función para mostrar mensajes en la interfaz de creación de admin
             function showMessage(msg, isError = false) {
                 messageElement.textContent = msg;
                 messageElement.className = `mt-4 text-sm font-semibold ${isError ? 'text-red-600' : 'text-green-600'}`;
@@ -194,12 +191,11 @@
             const passwordInput = document.getElementById('password');
             const regionSelect = document.getElementById('region-select');
 
-            // Manejar el envío del formulario
             if (form) {
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const email = emailInput.value;
-                    const password = passwordInput.value;
+                    const password = passwordInput.value; // (metadato local)
                     const region = regionSelect.value;
 
                     if (!auth.currentUser) {
@@ -212,7 +208,7 @@
                     showMessage('Creando administrador...', false);
 
                     try {
-                        // Usamos el email como ID de documento
+                        // Guardar metadatos del admin regional
                         const newUserDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', email);
                         await setDoc(newUserDocRef, {
                             email: email,
@@ -225,19 +221,19 @@
                         showMessage('¡Administrador regional creado con éxito!', false);
                         form.reset();
                     } catch (error) {
-                        console.error("Error al crear el administrador regional:", error);
-                        showMessage('Error al crear el administrador. Por favor, inténtalo de nuevo.', true);
+                        console.error("Error al crear admin regional:", error);
+                        showMessage('Error al crear el administrador. Inténtalo de nuevo.', true);
                     }
                 });
             }
 
-            // Autenticar con el token inicial si está disponible
+            // Autenticar con token inicial si existe
             async function authenticateUserWithToken() {
                 if (initialAuthToken) {
                     try {
                         await signInWithCustomToken(auth, initialAuthToken);
                     } catch(error) {
-                        console.error("Error al autenticar con el token inicial:", error);
+                        console.error("Error al autenticar con token inicial:", error);
                     }
                 }
             }
